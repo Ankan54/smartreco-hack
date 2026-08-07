@@ -352,3 +352,34 @@ textarea { font-family: var(--ui); line-height: 1.6; resize: vertical; }
        text-transform: uppercase; letter-spacing: .08em; }
 
 @media (max-width: 900px) { .dash { grid-template-columns: 1fr; } }
+
+/* ---- arguing with the dossier -------------------------------------------- */
+.claim { grid-template-columns: 1.1rem 1fr auto; }
+.claim .txt { cursor: help; }         /* the evidence is the tooltip */
+.strike {
+  background: none; border: 0; padding: 0 0 0 .4rem; cursor: pointer;
+  font: 400 1rem/1 var(--ui); color: var(--rule);
+  transition: color .15s;
+}
+.claim:hover .strike { color: var(--slate); }
+.strike:hover, .strike[aria-pressed="true"] { color: var(--signal); }
+.claim.struck { opacity: .55; }
+.claim.struck .txt { text-decoration: line-through; }
+
+/* A claim the last reflection added. Magenta, because it changed your course. */
+.claim.fresh .txt { box-shadow: inset 0 -0.55em 0 rgba(196,0,90,.10); }
+
+.btn.small { font-size: .82rem; padding: .45rem .8rem; margin-top: 1rem; }
+
+/* Picks re-dealing after an edit. One short settle, nothing decorative. */
+.picks.settling .pick { animation: settle .34s cubic-bezier(.22,.61,.36,1) both; }
+@keyframes settle { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; } }
+.pick .because b { font-weight: 500; color: var(--depth); }
+
+/* The narrative was written for the previous picks. Say so, quietly. */
+.reco.stale .reco-narrative { opacity: .5; }
+.reco.stale .reco-narrative::after {
+  content: " — written for the previous picks.";
+  font-family: var(--mono); font-size: .72rem; color: var(--signal); opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) { .picks.settling .pick { animation: none; } }

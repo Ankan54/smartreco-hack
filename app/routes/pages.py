@@ -125,8 +125,11 @@ def dashboard(request: Request):
         # NOT "items": Jinja resolves reco.items to dict.items() -- the method,
         # not the key -- and the template dies with a cryptic TypeError.
         reco["picks"] = items
-    return render(request, "dashboard.html",
-                  reco=reco, dossier=dossier_mod.current(user["id"]))
+    d = dossier_mod.current(user["id"])
+    hist = dossier_mod.history(user["id"], limit=2)
+    changed = dossier_mod.diff(d, hist[1]) if d and len(hist) > 1 else {
+        "added": [], "removed": [], "changed": []}
+    return render(request, "dashboard.html", reco=reco, dossier=d, changed=changed)
 
 
 @router.get("/welcome", response_class=HTMLResponse)

@@ -17,6 +17,7 @@ Behaviours below are measured against the live Mesh API, not assumed:
 import hashlib
 import json
 import logging
+from collections import OrderedDict
 
 import numpy as np
 from openai import OpenAI
@@ -39,9 +40,69 @@ else:
     client = _raw
 
 
+class _LRU:
+    """Tiny bounded cache. An OrderedDict beats pulling in a dependency, and
+    functools.lru_cache cannot be used here because the arguments (lists of
+    dicts) are unhashable."""
+
+    def __init__(self, maxsize: int):
+        self.maxsize = maxsize
+        self._d: OrderedDict[str, object] = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: str):
+        if key in self._d:
+            self._d.move_to_end(key)
+            self.hits += 1
+            return self._d[key]
+        self.misses += 1
+        return None
+
+    def put(self, key: str, value) -> None:
+        self._d[key] = value
+        self._d.move_to_end(key)
+        while len(self._d) > self.maxsize:
+            self._d.popitem(last=False)
+
+    def stats(self) -> dict:
+        return {"size": len(self._d), "hits": self.hits, "misses": self.misses}
+
+
+# Three layers of cache, cheapest first:
+#   1. these in-process LRUs      -- no I/O at all
+#   2. embed_cache in SQLite      -- survives restarts, shared across workers
+#   3. Mesh's own gateway cache   -- x-cache: HIT, zero tokens billed
+_chat_cache = _LRU(256)
+_embed_cache = _LRU(4096)
+
+
+def cache_stats() -> dict:
+    return {"chat": _chat_cache.stats(), "embed": _embed_cache.stats()}
+
+
+def _chat_key(model: str, messages: list[dict], schema: dict | None) -> str:
+    payload = json.dumps(
+        {"m": model, "s": (schema or {}).get("name"), "msgs": messages},
+        sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def chat(messages: list[dict], schema: dict | None = None, model: str | None = None):
     """Returns (result, meta). result is a dict when schema is given, else str,
-    or None if the model degraded to prose. Never raises on bad JSON."""
+    or None if the model degraded to prose. Never raises on bad JSON.
+
+    Identical prompts return the memoised answer without touching the network.
+    Safe because we never send a temperature: the request is deterministic by
+    construction, so a repeat call was always going to produce the same thing.
+    """
+    model = model or config.CHAT_MODEL
+    key = _chat_key(model, messages, schema)
+    hit = _chat_cache.get(key)
+    if hit is not None:
+        result, meta = hit
+        return result, {**meta, "cache": "memory"}
+
     kwargs: dict = {}
     if schema:
         kwargs["response_format"] = {
@@ -50,7 +111,7 @@ def chat(messages: list[dict], schema: dict | None = None, model: str | None = N
         }
 
     raw = client.chat.completions.with_raw_response.create(
-        model=model or config.CHAT_MODEL,
+        model=model,
         messages=messages,
         reasoning_effort=config.REASONING_EFFORT,
         **kwargs,
@@ -58,7 +119,7 @@ def chat(messages: list[dict], schema: dict | None = None, model: str | None = N
     completion = raw.parse()
     usage = completion.usage
     meta = {
-        "model": model or config.CHAT_MODEL,
+        "model": model,
         "cache": raw.headers.get("x-cache", "MISS"),
         "request_id": raw.headers.get("x-request-id"),
         "prompt_tokens": getattr(usage, "prompt_tokens", None),
@@ -66,13 +127,16 @@ def chat(messages: list[dict], schema: dict | None = None, model: str | None = N
     }
     text = completion.choices[0].message.content or ""
     if not schema:
+        _chat_cache.put(key, (text, meta))
         return text, meta
     try:
-        return json.loads(text), meta
+        parsed = json.loads(text)
     except json.JSONDecodeError:
         log.warning("Mesh degraded to prose for schema %s", schema["name"])
         meta["degraded"] = True
-        return None, meta
+        return None, meta      # never memoise a failure -- a retry may succeed
+    _chat_cache.put(key, (parsed, meta))
+    return parsed, meta
 
 
 # --- embeddings ------------------------------------------------------------
@@ -98,15 +162,30 @@ def embed(texts: list[str]) -> list[np.ndarray]:
     wasteful thing this app could do, so it simply never happens."""
     if not texts:
         return []
-    hashes = [_hash(t) for t in texts]
+    hashes = [cache_key(t) for t in texts]
     cached: dict[str, np.ndarray] = {}
-    placeholders = ",".join("?" * len(set(hashes)))
-    rows = db.q(
-        f"SELECT text_hash, vec FROM embed_cache WHERE text_hash IN ({placeholders})",
-        tuple(set(hashes)),
-    )
-    for r in rows:
-        cached[r["text_hash"]] = db.from_blob(r["vec"])
+
+    # Layer 1: in-process. Search queries and dossier claim probes repeat
+    # constantly within a session, and this skips SQLite entirely.
+    need_db = []
+    for h in set(hashes):
+        v = _embed_cache.get(h)
+        if v is not None:
+            cached[h] = v
+        else:
+            need_db.append(h)
+
+    # Layer 2: SQLite, which survives restarts.
+    if need_db:
+        placeholders = ",".join("?" * len(need_db))
+        rows = db.q(
+            f"SELECT text_hash, vec FROM embed_cache WHERE text_hash IN ({placeholders})",
+            tuple(need_db),
+        )
+        for r in rows:
+            v = db.from_blob(r["vec"])
+            cached[r["text_hash"]] = v
+            _embed_cache.put(r["text_hash"], v)
 
     missing = [(h, t) for h, t in zip(hashes, texts) if h not in cached]
     # dedupe within this batch too
@@ -126,6 +205,7 @@ def embed(texts: list[str]) -> list[np.ndarray]:
                 for (h, _), item in zip(chunk, resp.data):
                     v = np.asarray(item.embedding, dtype=np.float32)
                     cached[h] = v
+                    _embed_cache.put(h, v)
                     c.execute(
                         "INSERT OR IGNORE INTO embed_cache(text_hash, model, vec) VALUES (?,?,?)",
                         (h, config.EMBED_MODEL, db.to_blob(v)),

@@ -16,21 +16,27 @@
     </div>
   </div>
 
+  {# Second person and deliberately uncertain: "what I reckon", not "your
+     profile". The uncertainty is what invites the correction. #}
   <aside class="aside" id="dossier">
     <p class="eyebrow">What I reckon about you</p>
     {% if dossier %}
       <p class="dossier-prose">{{ dossier.prose }}</p>
       <ul class="claims">
         {% for c in dossier.claims %}
-        <li class="claim {% if not c.enabled %}struck{% endif %}"
-            data-claim="{{ c.id }}" title="{{ c.evidence }}">
-          <span class="pol {{ 'neg' if c.polarity == '-' else 'pos' }}">{{ c.polarity }}</span>
-          <span class="txt">{{ c.text }}</span>
-          <span class="str">{{ '%.1f'|format(c.strength) }}</span>
+        <li class="claim {% if not c.enabled %}struck{% endif %}{% if c.id in changed.added %} fresh{% endif %}"
+            data-claim="{{ c.id }}">
+          <span class="pol {{ 'neg' if c.polarity == '-' else 'pos' }}"
+                aria-hidden="true">{{ c.polarity }}</span>
+          <span class="txt" title="{{ c.evidence }}">{{ c.text }}</span>
+          <button type="button" data-toggle class="strike"
+                  aria-pressed="{{ 'true' if not c.enabled else 'false' }}"
+                  title="{{ 'put this back' if not c.enabled else 'not true' }}">×</button>
         </li>
         {% endfor %}
       </ul>
       <p class="ver">v{{ dossier.version }} · {{ dossier.source.replace('_', ' ') }}</p>
+      <button class="btn ghost small" id="refresh-picks" type="button">Refresh my picks</button>
     {% else %}
       <p class="dim" style="font-size:.9rem;margin-top:1rem">Still working it out.</p>
     {% endif %}

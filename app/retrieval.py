@@ -172,6 +172,11 @@ def retrieve(user_id: int, claims: list[dict] | None = None,
     where = _chroma_where(filters)
 
     scores: dict[int, float] = {}
+    # Which probes surfaced each candidate, and how much each contributed. This
+    # is what lets the UI say "this pick is here because of that claim" -- and
+    # what makes striking a claim out a visible, causal change rather than a
+    # vague promise.
+    credit: dict[int, list[tuple[str, float]]] = {}
     detail: list[dict] = []
 
     for p in probes:
@@ -185,6 +190,8 @@ def retrieve(user_id: int, claims: list[dict] | None = None,
             contrib = p["weight"] / (config.RRF_K + rank + 1)
             # A negative claim SUBTRACTS from anything it ranks highly.
             scores[pid] = scores.get(pid, 0.0) + (-contrib if negative else contrib)
+            credit.setdefault(pid, []).append(
+                (p["name"], -contrib if negative else contrib))
 
         detail.append({"name": p["name"], "kind": p["kind"], "weight": round(p["weight"], 3),
                        "polarity": p.get("polarity", "+"), "text": p.get("text"),
@@ -208,6 +215,7 @@ def retrieve(user_id: int, claims: list[dict] | None = None,
         key=lambda kv: kv[1], reverse=True,
     )[:limit]
 
+    label = {p["name"]: (p.get("text") or p["name"]) for p in probes}
     candidates = []
     for pid, score in ordered:
         row = db.q1("SELECT * FROM products WHERE id = ? AND is_active = 1", (pid,))
@@ -215,6 +223,9 @@ def retrieve(user_id: int, claims: list[dict] | None = None,
             continue
         c = dict(row)
         c["rrf"] = round(score, 5)
+        top = sorted(credit.get(pid, []), key=lambda kv: kv[1], reverse=True)[:2]
+        c["because"] = [{"probe": n, "label": label.get(n, n), "share": round(v, 5)}
+                        for n, v in top if v > 0]
         candidates.append(c)
 
     log.info("retrieve user=%s probes=%d pooled=%d excluded=%d -> %d candidates",
