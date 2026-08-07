@@ -301,3 +301,54 @@ label.inline { display: flex; align-items: flex-start; gap: .5rem; flex-wrap: wr
 label.inline input { width: auto; margin-top: .25rem; }
 label.inline .hint { flex-basis: 100%; margin-left: 1.4rem; }
 textarea { font-family: var(--ui); line-height: 1.6; resize: vertical; }
+
+/* ---- dashboard: the recommendation and the dossier ------------------------ */
+.dash { display: grid; grid-template-columns: 1fr 340px; gap: 3rem; margin: 3rem 0; }
+
+.reco {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--signal);   /* the overprint: your course changed */
+  border-radius: var(--radius);
+  padding: 1.75rem;
+}
+.reco-head { font-size: 1.35rem; font-weight: 500; margin-bottom: .85rem; }
+/* The agent's own voice, set to read like a letter rather than UI chrome. */
+.reco-narrative {
+  font-family: var(--read); font-size: 1.06rem; line-height: 1.7;
+  color: var(--ink); margin: 0 0 1.5rem;
+}
+.picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px;
+         background: var(--rule); border: 1px solid var(--rule); }
+.pick {
+  display: flex; gap: 1rem; padding: 1rem 1.1rem; background: var(--paper);
+  text-decoration: none; color: inherit; transition: background .15s;
+}
+.pick:hover { background: var(--tint); }
+.pick .n {
+  font: 500 .72rem var(--mono); color: var(--buff); padding-top: .2rem; min-width: 1.1rem;
+}
+.pick .body { display: grid; gap: .2rem; }
+.pick .t { font-weight: 500; font-size: .98rem; }
+.pick .r { font-size: .88rem; color: var(--slate); }
+.pick .m { font: 400 .72rem var(--mono); color: var(--slate); }
+
+.dossier-prose {
+  font-family: var(--read); font-size: 1rem; line-height: 1.65;
+  margin: 1rem 0 1.25rem;
+}
+.claims { list-style: none; margin: 0; padding: 0; display: grid; gap: .1rem; }
+.claim {
+  display: grid; grid-template-columns: 1.1rem 1fr auto; gap: .55rem;
+  align-items: baseline; padding: .45rem 0;
+  border-top: 1px solid var(--rule); font-size: .89rem; cursor: help;
+}
+.claim .pol { font: 500 .85rem var(--mono); }
+.claim .pol.pos { color: var(--depth); }
+.claim .pol.neg { color: var(--signal); }
+.claim .str { font: 400 .7rem var(--mono); color: var(--slate); }
+.claim.struck .txt { text-decoration: line-through; color: var(--slate); }
+.ver { font: 400 .7rem var(--mono); color: var(--slate); margin-top: 1rem;
+       text-transform: uppercase; letter-spacing: .08em; }
+
+@media (max-width: 900px) { .dash { grid-template-columns: 1fr; } }

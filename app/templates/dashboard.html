@@ -2,20 +2,38 @@
 {% block title %}For you — Reckon{% endblock %}
 {% block content %}
 
-<div style="display:grid;grid-template-columns:1fr 340px;gap:3rem;margin:3rem 0">
+<div class="dash">
   <div>
     <p class="eyebrow">For you</p>
     <h1 style="margin:.5rem 0 2rem">Your next step.</h1>
-    <div id="reco">
-      {# Phase 4 fills this. Placeholder keeps the page honest until then. #}
-      <p class="dim">Nothing to go on yet. Browse a few courses and this fills in.</p>
+
+    <div id="reco" data-reco-id="{{ reco.id if reco else 0 }}">
+      {% if reco %}
+        {% include "partials/reco_card.html" %}
+      {% else %}
+        <p class="dim">Nothing to go on yet. Browse a few courses and this fills in.</p>
+      {% endif %}
     </div>
   </div>
 
   <aside class="aside" id="dossier">
-    {# Phase 5: the slow tier, made readable and editable. #}
     <p class="eyebrow">What I reckon about you</p>
-    <p class="dim" style="font-size:.9rem;margin-top:1rem">Still working it out.</p>
+    {% if dossier %}
+      <p class="dossier-prose">{{ dossier.prose }}</p>
+      <ul class="claims">
+        {% for c in dossier.claims %}
+        <li class="claim {% if not c.enabled %}struck{% endif %}"
+            data-claim="{{ c.id }}" title="{{ c.evidence }}">
+          <span class="pol {{ 'neg' if c.polarity == '-' else 'pos' }}">{{ c.polarity }}</span>
+          <span class="txt">{{ c.text }}</span>
+          <span class="str">{{ '%.1f'|format(c.strength) }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="ver">v{{ dossier.version }} · {{ dossier.source.replace('_', ' ') }}</p>
+    {% else %}
+      <p class="dim" style="font-size:.9rem;margin-top:1rem">Still working it out.</p>
+    {% endif %}
   </aside>
 </div>
 

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import auth, config, db
+from app import auth, config, db, dossier as dossier_mod
 
 router = APIRouter()
 templates = Jinja2Templates(directory=config.ROOT / "app" / "templates")
@@ -111,7 +111,22 @@ def dashboard(request: Request):
         return RedirectResponse("/login", status_code=303)
     if not user["onboarded"]:
         return RedirectResponse("/welcome", status_code=303)
-    return render(request, "dashboard.html")
+
+    row = db.q1("SELECT * FROM recommendations WHERE user_id = ? AND is_current = 1 "
+                "ORDER BY id DESC LIMIT 1", (user["id"],))
+    reco = None
+    if row:
+        reco = dict(row)
+        items = []
+        for i in json.loads(reco["items_json"]):
+            p = db.q1("SELECT * FROM products WHERE id = ?", (i["product_id"],))
+            if p:
+                items.append({**i, "product": dict(p)})
+        # NOT "items": Jinja resolves reco.items to dict.items() -- the method,
+        # not the key -- and the template dies with a cryptic TypeError.
+        reco["picks"] = items
+    return render(request, "dashboard.html",
+                  reco=reco, dossier=dossier_mod.current(user["id"]))
 
 
 @router.get("/welcome", response_class=HTMLResponse)

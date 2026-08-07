@@ -1,0 +1,23 @@
+{# The recommendation. The narrative is the agent's own voice, so it is set in
+   the reading serif -- it should feel authored, not generated. #}
+<article class="reco">
+  <h2 class="reco-head">{{ reco.headline }}</h2>
+  <p class="reco-narrative">{{ reco.narrative }}</p>
+
+  <ol class="picks">
+    {% for i in reco.picks %}
+    <li>
+      <a href="/p/{{ i.product.id }}" class="pick" data-product="{{ i.product.id }}">
+        <span class="n">{{ loop.index }}</span>
+        <span class="body">
+          <span class="t">{{ i.product.title }}</span>
+          <span class="r">{{ i.reason }}</span>
+          <span class="m">{{ i.product.category }}
+            {%- if i.product.level %} · {{ i.product.level }}{% endif %}
+            · {% if i.product.price %}₹{{ '{:,.0f}'.format(i.product.price) }}{% else %}Free{% endif %}</span>
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</article>

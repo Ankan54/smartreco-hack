@@ -12,12 +12,13 @@ slow down or break the frontend". Concretely:
     duplicated events would silently corrupt the drift signal
 """
 
+import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, Field
 
-from app import auth, db, intent
+from app import agent, auth, db, intent
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -44,16 +45,16 @@ def process(user_id: int, events: list[dict]) -> None:
     try:
         state = intent.apply_events(user_id, events)
         fire, reason, drift = intent.should_fire(state)
-        if fire:
-            # Phase 4 replaces this with the LangGraph agent. Logging the
-            # decision now means the gate is real and observable before the
-            # expensive half exists.
-            log.info("user %s: WOULD FIRE agent (%s) drift=%.4f events=%s",
-                     user_id, reason, drift, state["events_since_reco"])
-        else:
+        if not fire:
             log.debug("user %s: no fire (%s) drift=%.4f", user_id, reason, drift)
+            return
+        log.info("user %s: firing agent (%s) drift=%.4f events=%s",
+                 user_id, reason, drift, state["events_since_reco"])
+        agent.run(user_id, reason, drift=drift)
     except Exception:
-        log.exception("intent update failed for user %s", user_id)
+        # A failed agent run must never break tracking, and must never leave the
+        # user stuck: the drift baseline is untouched, so the next batch retries.
+        log.exception("agent pipeline failed for user %s", user_id)
 
 
 @router.post("/events", status_code=202)
@@ -80,6 +81,25 @@ async def ingest(batch: EventBatch, bg: BackgroundTasks, request: Request):
         bg.add_task(process, user["id"], keep)
 
     return {"accepted": len(rows)}
+
+
+@router.get("/recommendations")
+def recommendations(since: int = 0, user=Depends(auth.require_user)):
+    """Polled by the dashboard. `since` lets the client re-render only when the
+    agent has actually produced something new."""
+    row = db.q1("SELECT * FROM recommendations WHERE user_id = ? AND is_current = 1 "
+                "ORDER BY id DESC LIMIT 1", (user["id"],))
+    if not row or row["id"] <= since:
+        return {"changed": False}
+    items = []
+    for i in json.loads(row["items_json"]):
+        p = db.q1("SELECT id,title,category,level,price FROM products WHERE id = ?",
+                  (i["product_id"],))
+        if p:
+            items.append({**i, "product": dict(p)})
+    return {"changed": True, "id": row["id"], "headline": row["headline"],
+            "narrative": row["narrative"], "trigger": row["trigger"],
+            "drift": row["drift"], "created_at": row["created_at"], "items": items}
 
 
 @router.get("/horizon")

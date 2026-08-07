@@ -26,6 +26,9 @@ EMBED_DIM = int(_s("EMBED_DIM", "1536"))
 # gpt-5-nano burns ~128 reasoning tokens on a trivial prompt; "low" halves it.
 # "none" is rejected by this model. Measured, not guessed.
 REASONING_EFFORT = _s("REASONING_EFFORT", "low")
+# The generate node writes the only prose a human reads, so it gets the better
+# model. grade/critic/reflect stay on the cheap one -- nobody reads their output.
+GENERATE_MODEL = _s("GENERATE_MODEL", "openai/gpt-5-mini")
 
 LANGSMITH_API_KEY = _s("LANGSMITH_API_KEY")
 LANGSMITH_PROJECT = _s("LANGSMITH_PROJECT", "reckon")
