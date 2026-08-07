@@ -2,11 +2,11 @@
 {% block title %}{{ 'Edit' if p else 'Add' }} a course — Reckon{% endblock %}
 {% block content %}
 
-<div style="max-width:680px;margin:3rem auto">
+<div class="admin-edit">
   <p class="eyebrow">{{ 'Editing' if p else 'New course' }}</p>
-  <h1 style="margin:.5rem 0 2rem">{{ p.title if p else 'Add a course' }}</h1>
+  <h1 class="auth-title">{{ p.title if p else 'Add a course' }}</h1>
 
-  <form method="post" action="/admin/save" style="display:grid;gap:1.15rem">
+  <form method="post" action="/admin/save">
     {% if p %}<input type="hidden" name="product_id" value="{{ p.id }}">{% endif %}
 
     <label>Title<input type="text" name="title" required value="{{ p.title if p else '' }}"></label>
@@ -17,7 +17,7 @@
         outcome — the first sentence carries the most retrieval weight.</span>
     </label>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.15rem">
+    <div class="admin-grid-2">
       <label>Category
         <select name="category" required>
           {% for c in categories %}
@@ -50,7 +50,7 @@
       <span class="hint">Unpublishing removes it from search immediately; the record is kept.</span>
     </label>
 
-    <div style="display:flex;gap:.75rem;margin-top:.5rem">
+    <div class="admin-actions">
       <button class="btn" type="submit">{{ 'Save changes' if p else 'Add course' }}</button>
       <a class="btn ghost" href="/admin">Cancel</a>
     </div>

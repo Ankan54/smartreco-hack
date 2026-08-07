@@ -19,6 +19,7 @@ Versions are append-only: the UI diffs v(n) against v(n-1), and the history is
 what makes the agent's belief-change legible instead of magical.
 """
 
+import hashlib
 import json
 import logging
 
@@ -27,6 +28,13 @@ from app import db
 log = logging.getLogger(__name__)
 
 MAX_CLAIMS = 8
+
+
+def _stable_id(polarity: str, kind: str, text: str) -> str:
+    """Identity is meaning, not the LLM's disposable label. Same text across
+    reflections keeps the same id so the UI diff and strike-out stay honest."""
+    key = f"{polarity}|{kind}|{text.casefold().strip()}"
+    return hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
 def current(user_id: int) -> dict | None:
@@ -63,17 +71,21 @@ def save(user_id: int, claims: list[dict], prose: str, source: str) -> dict:
     version = (prev["version"] + 1) if prev else 1
 
     clean = []
-    for i, c in enumerate(claims[:MAX_CLAIMS]):
+    for c in claims[:MAX_CLAIMS]:
+        text = (c.get("text") or "").strip()
+        if not text:
+            continue
+        polarity = "-" if c.get("polarity") == "-" else "+"
+        kind = "constraint" if c.get("kind") == "constraint" else "interest"
         clean.append({
-            "id": str(c.get("id") or f"c{i + 1}"),
-            "polarity": "-" if c.get("polarity") == "-" else "+",
-            "kind": "constraint" if c.get("kind") == "constraint" else "interest",
-            "text": (c.get("text") or "").strip(),
+            "id": _stable_id(polarity, kind, text),
+            "polarity": polarity,
+            "kind": kind,
+            "text": text,
             "strength": max(0.0, min(1.0, float(c.get("strength", 0.5)))),
             "evidence": (c.get("evidence") or "").strip(),
             "enabled": bool(c.get("enabled", True)),
         })
-    clean = [c for c in clean if c["text"]]
 
     with db.tx() as conn:
         conn.execute(

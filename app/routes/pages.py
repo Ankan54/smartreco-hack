@@ -13,6 +13,7 @@ templates = Jinja2Templates(directory=config.ROOT / "app" / "templates")
 
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
     ctx.setdefault("user", auth.current_user(request))
+    ctx.setdefault("asset_v", config.ASSET_V)
     return templates.TemplateResponse(request, name, ctx)
 
 

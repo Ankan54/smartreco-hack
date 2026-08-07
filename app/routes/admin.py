@@ -7,6 +7,7 @@ no second way to write a product.
 """
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -14,7 +15,54 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import auth, config, db, vectors
 from app.routes.pages import render, rows_to_products
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
+
+
+def _langsmith_client():
+    from langsmith import Client
+    return Client(api_key=config.LANGSMITH_API_KEY)
+
+
+def _langsmith_runs(limit: int = 50) -> tuple[list[dict], str | None]:
+    """Root traces for the configured project, newest first. Empty + note if
+    LangSmith is not configured or the API call fails."""
+    if not config.LANGSMITH_API_KEY:
+        return [], "Set LANGSMITH_API_KEY to see traces from LangSmith."
+    try:
+        client = _langsmith_client()
+        raw = list(client.list_runs(
+            project_name=config.LANGSMITH_PROJECT,
+            is_root=True,
+            limit=limit,
+        ))
+        raw.sort(key=lambda r: r.start_time or 0, reverse=True)
+        out = []
+        for r in raw:
+            ms = None
+            if r.start_time and r.end_time:
+                ms = int((r.end_time - r.start_time).total_seconds() * 1000)
+            out.append({
+                "id": str(r.id),
+                "name": r.name or "trace",
+                "status": (r.status or "").lower(),
+                "start": r.start_time,
+                "ms": ms,
+                "tokens": int(getattr(r, "total_tokens", None) or 0),
+            })
+        return out, None
+    except Exception as e:
+        log.exception("langsmith list_runs failed")
+        return [], f"Could not load LangSmith traces: {e}"
+
+
+def _public_share_url(run_id: str) -> str:
+    """Create (or reuse) a public LangSmith share link for this run."""
+    client = _langsmith_client()
+    existing = client.read_run_shared_link(run_id)
+    if existing:
+        return existing
+    return client.share_run(run_id)
 
 
 @router.get("", response_class=HTMLResponse)
@@ -33,6 +81,32 @@ def index(request: Request, q: str = "", saved: str = "", user=Depends(auth.requ
         q=q, saved=saved,
         total=db.q1("SELECT COUNT(*) n FROM products")["n"],
     )
+
+
+@router.get("/traces", response_class=HTMLResponse)
+def traces(request: Request, user=Depends(auth.require_admin)):
+    rows, note = _langsmith_runs()
+    return render(
+        request, "admin_traces.html",
+        runs=rows, note=note, project=config.LANGSMITH_PROJECT,
+    )
+
+
+@router.get("/runs", response_class=HTMLResponse)
+def runs_redirect(user=Depends(auth.require_admin)):
+    return RedirectResponse("/admin/traces", status_code=303)
+
+
+@router.get("/traces/{run_id}/share")
+def share_trace(run_id: str, user=Depends(auth.require_admin)):
+    """Mint a public LangSmith share URL, then send the admin there."""
+    if not config.LANGSMITH_API_KEY:
+        return HTMLResponse("LangSmith is not configured.", status_code=503)
+    try:
+        return RedirectResponse(_public_share_url(run_id), status_code=303)
+    except Exception:
+        log.exception("langsmith share_run failed for %s", run_id)
+        return HTMLResponse("Could not create a public share link.", status_code=502)
 
 
 @router.get("/new", response_class=HTMLResponse)

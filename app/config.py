@@ -42,6 +42,21 @@ COLLECTION = "products"
 
 SECRET_KEY = _s("SECRET_KEY", "dev-only-not-a-secret-change-in-prod")
 
+# Cache-busting stamp for /static URLs. Derived from the newest asset mtime, so
+# it changes exactly when an asset does. Without it the browser happily serves
+# yesterday's JS against today's API and the bug looks like it is in the code.
+def _asset_version() -> str:
+    newest = 0.0
+    static = ROOT / "app" / "static"
+    if static.exists():
+        for f in static.rglob("*"):
+            if f.is_file():
+                newest = max(newest, f.stat().st_mtime)
+    return str(int(newest))
+
+
+ASSET_V = _asset_version()
+
 # --- intent engine (§8) ----------------------------------------------------
 HALF_LIFE_MIN = 240.0          # 4h: a morning's browsing still shapes the afternoon
 DRIFT_THRESHOLD = 0.15         # cosine distance that counts as "changed course"

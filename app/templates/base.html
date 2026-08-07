@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/app.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='none' stroke='%239A7B3F' stroke-width='2'/></svg>">
+<link rel="stylesheet" href="/static/css/app.css?v={{ asset_v }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='none' stroke='%237D5A2A' stroke-width='2'/><path d='M8 3.5v9M3.5 8h9' stroke='%237D5A2A' stroke-width='1.5'/></svg>">
 </head>
 <body>
 
@@ -18,9 +18,25 @@
     <nav>
       <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Browse</a>
       {% if user %}
-        <a href="/me" {% if request.url.path == '/me' %}aria-current="page"{% endif %}>For you</a>
-        {% if user.role == 'admin' %}<a href="/admin">Catalog</a>{% endif %}
-        <a href="/logout">Sign out</a>
+        <div class="profile" id="profile-menu">
+          <button type="button" class="profile-btn" id="profile-btn"
+                  aria-haspopup="menu" aria-expanded="false" aria-controls="profile-dropdown"
+                  aria-label="Account">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="1.75">
+              <circle cx="12" cy="8" r="3.25"/>
+              <path d="M5.5 19.5c1.8-3.2 4-4.75 6.5-4.75s4.7 1.55 6.5 4.75"/>
+            </svg>
+          </button>
+          <div class="profile-drop" id="profile-dropdown" role="menu" hidden>
+            <a role="menuitem" href="/me" {% if request.url.path == '/me' %}aria-current="page"{% endif %}>For you</a>
+            {% if user.role == 'admin' %}
+              <a role="menuitem" href="/admin">Catalog</a>
+              <a role="menuitem" href="/admin/traces">Traces</a>
+            {% endif %}
+            <a role="menuitem" href="/logout">Sign out</a>
+          </div>
+        </div>
       {% else %}
         <a class="btn ghost" href="/login">Sign in</a>
       {% endif %}
@@ -29,10 +45,9 @@
 </header>
 
 {#  The Horizon. Level until interests move. Tilts as drift accumulates, flushes
-    sodium when the agent wakes. Driven by the real drift value, never faked. #}
+    signal when the agent wakes. Display only. #}
 <div class="horizon" id="horizon" data-state="level" aria-hidden="true">
   <i></i>
-  {% if user %}<button type="button" id="horizon-open" tabindex="-1"></button>{% endif %}
 </div>
 
 <main class="wrap">
@@ -46,9 +61,10 @@
 </footer>
 
 {% if user %}
-<script src="/static/js/track.js" defer></script>
-<script src="/static/js/horizon.js" defer></script>
-<script src="/static/js/dossier.js" defer></script>
+  <script src="/static/js/track.js?v={{ asset_v }}" defer></script>
+  <script src="/static/js/horizon.js?v={{ asset_v }}" defer></script>
+  <script src="/static/js/dossier.js?v={{ asset_v }}" defer></script>
+  <script src="/static/js/profile-menu.js?v={{ asset_v }}" defer></script>
 {% endif %}
 {% block scripts %}{% endblock %}
 </body>

@@ -5,17 +5,17 @@
 <div class="detail" data-product="{{ p.id }}">
   <div>
     <p class="eyebrow">{{ p.category }}{% if p.level %} · {{ p.level }}{% endif %}</p>
-    <h1 style="margin:.6rem 0 1.2rem">{{ p.title }}</h1>
+    <h1 class="detail-title">{{ p.title }}</h1>
     <div class="body">{{ p.description }}</div>
 
     {% if p.skills_list %}
-    <div class="filters" style="margin-top:2rem">
+    <div class="filters skills-row">
       {% for s in p.skills_list[:8] %}<span class="chip">{{ s }}</span>{% endfor %}
     </div>
     {% endif %}
 
     {% if prereqs %}
-    <div style="margin-top:2.5rem">
+    <div class="mt-section">
       <p class="eyebrow">Take these first</p>
       <div class="ladder">
         {% for q in prereqs %}<a href="/p/{{ q.id }}">{{ q.title }}</a>{% endfor %}
@@ -25,24 +25,24 @@
   </div>
 
   <aside class="aside">
-    <p style="font-size:1.6rem;font-weight:500;margin:0 0 1.25rem">
+    <p class="price-lg">
       {% if p.price %}₹{{ '{:,.0f}'.format(p.price) }}{% else %}Free{% endif %}
     </p>
     <form method="post" action="/enroll/{{ p.id }}">
-      <button class="btn" style="width:100%" type="submit">Enroll</button>
+      <button class="btn block" type="submit">Enroll</button>
     </form>
-    <dl style="margin-top:1.5rem">
+    <dl class="aside-meta">
       {% if p.provider %}<dt>By</dt><dd>{{ p.provider }}</dd>{% endif %}
       {% if p.level %}<dt>Level</dt><dd>{{ p.level }}</dd>{% endif %}
-      {% if p.rating %}<dt>Rating</dt><dd>★ {{ '%.1f'|format(p.rating) }}</dd>{% endif %}
+      {% if p.rating %}<dt>Rating</dt><dd>{{ '%.1f'|format(p.rating) }}</dd>{% endif %}
     </dl>
   </aside>
 </div>
 
 {% if same %}
-<div style="margin-top:4rem">
+<div class="mt-related">
   <p class="eyebrow">More in {{ p.category }}</p>
-  <div class="grid" style="margin-top:1rem">
+  <div class="grid related-grid">
     {% for s in same %}
     <a class="card" href="/p/{{ s.id }}" data-product="{{ s.id }}">
       <h3>{{ s.title }}</h3>

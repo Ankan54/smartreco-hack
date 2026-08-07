@@ -4,21 +4,24 @@
 
 <div class="dash">
   <div>
-    <p class="eyebrow">For you</p>
-    <h1 style="margin:.5rem 0 2rem">Your next step.</h1>
+    <div class="page-hero tight">
+      <p class="eyebrow">For you</p>
+      <h1>Your next step.</h1>
+      <p class="page-lead">Picks shift when your course does.</p>
+    </div>
 
     <div id="reco" data-reco-id="{{ reco.id if reco else 0 }}">
       {% if reco %}
         {% include "partials/reco_card.html" %}
       {% else %}
-        <p class="dim">Nothing to go on yet. Browse a few courses and this fills in.</p>
+        <p class="dim">Nothing to go on yet. <a href="/">Browse</a> a few courses and this fills in.</p>
       {% endif %}
     </div>
   </div>
 
   {# Second person and deliberately uncertain: "what I reckon", not "your
      profile". The uncertainty is what invites the correction. #}
-  <aside class="aside" id="dossier">
+  <aside class="aside dossier-panel" id="dossier">
     <p class="eyebrow">What I reckon about you</p>
     {% if dossier %}
       <p class="dossier-prose">{{ dossier.prose }}</p>
@@ -36,11 +39,26 @@
         {% endfor %}
       </ul>
       <p class="ver">v{{ dossier.version }} · {{ dossier.source.replace('_', ' ') }}</p>
-      <button class="btn ghost small" id="refresh-picks" type="button">Refresh my picks</button>
     {% else %}
-      <p class="dim" style="font-size:.9rem;margin-top:1rem">Still working it out.</p>
+      <p class="dim dossier-empty">Still working it out.</p>
     {% endif %}
+
+    <div class="panel-actions">
+      {% if dossier %}
+        <button class="btn ghost small" id="refresh-picks" type="button">Refresh my picks</button>
+      {% endif %}
+      {# The thinking toggle: ambient by default, full telemetry one click away
+         for the judge who goes looking. Dashboard only -- it is about the last
+         run, which is what this page is. #}
+      <button class="btn ghost small" id="open-agent-cam" type="button">Show me why</button>
+    </div>
   </aside>
 </div>
 
+{% include "partials/agent_cam.html" %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/agentcam.js?v={{ asset_v }}" defer></script>
 {% endblock %}

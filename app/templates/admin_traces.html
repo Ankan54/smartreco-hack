@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Traces — Reckon{% endblock %}
+{% block content %}
+
+<div class="admin-head">
+  <div>
+    <p class="eyebrow">LangSmith · {{ project }}</p>
+    <h1 class="admin-title">Traces</h1>
+  </div>
+  <a class="btn ghost" href="/admin">Catalog</a>
+</div>
+
+{% if note %}<p class="note">{{ note }}</p>{% endif %}
+
+{% if runs %}
+<table class="admin-table">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Name</th>
+      <th>Status</th>
+      <th>Duration</th>
+      <th>Tokens</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in runs %}
+    <tr>
+      <td class="num">
+        {% if r.start %}{{ r.start.strftime('%Y-%m-%d %H:%M:%S') }} UTC{% else %}—{% endif %}
+      </td>
+      <td>{{ r.name }}</td>
+      <td>
+        {% if r.status == 'success' %}<span class="dim">{{ r.status }}</span>
+        {% elif r.status %}<span class="tag off">{{ r.status }}</span>
+        {% else %}<span class="dim">—</span>{% endif %}
+      </td>
+      <td class="num">{% if r.ms is not none %}{{ r.ms }} ms{% else %}—{% endif %}</td>
+      <td class="num">{% if r.tokens %}{{ r.tokens }}{% else %}—{% endif %}</td>
+      <td class="row-actions">
+        <a href="/admin/traces/{{ r.id }}/share" target="_blank" rel="noopener">
+          Open in LangSmith
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif not note %}
+  <p class="dim empty-msg">No root traces in this project yet.</p>
+{% endif %}
+
+{% endblock %}

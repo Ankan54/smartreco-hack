@@ -40,66 +40,82 @@ def catalog():
         vectors.delete_product(pid)
 
 
-def claim(cid, text, polarity="+", kind="interest", strength=0.9):
-    return {"id": cid, "polarity": polarity, "kind": kind, "text": text,
+def claim(text, polarity="+", kind="interest", strength=0.9, cid=None):
+    # Caller ids are ignored on save — identity is derived from meaning.
+    return {"id": cid or "ignored", "polarity": polarity, "kind": kind, "text": text,
             "strength": strength, "evidence": "test", "enabled": True}
 
 
+def _id_for(text, polarity="+", kind="interest"):
+    return dossier._stable_id(polarity, kind, text)
+
+
 def test_versions_are_append_only(user_id):
-    dossier.save(user_id, [claim("c1", "basket weaving")], "First.", "reflection")
-    dossier.save(user_id, [claim("c1", "basket weaving"),
-                           claim("c2", "sourdough baking")], "Second.", "reflection")
+    dossier.save(user_id, [claim("basket weaving")], "First.", "reflection")
+    dossier.save(user_id, [claim("basket weaving"),
+                           claim("sourdough baking")], "Second.", "reflection")
     assert dossier.current(user_id)["version"] == 2
     assert len(dossier.history(user_id)) == 2, "an earlier version was overwritten"
 
 
 def test_diff_reports_what_changed(user_id):
-    dossier.save(user_id, [claim("c1", "basket weaving")], "a", "reflection")
+    dossier.save(user_id, [claim("basket weaving")], "a", "reflection")
     v1 = dossier.current(user_id)
-    dossier.save(user_id, [claim("c1", "basket weaving"),
-                           claim("c2", "sourdough baking")], "b", "reflection")
+    dossier.save(user_id, [claim("basket weaving"),
+                           claim("sourdough baking")], "b", "reflection")
     v2 = dossier.current(user_id)
     d = dossier.diff(v2, v1)
-    assert d["added"] == ["c2"] and d["removed"] == [] and d["changed"] == []
+    assert d["added"] == [_id_for("sourdough baking")]
+    assert d["removed"] == [] and d["changed"] == []
+
+
+def test_same_text_keeps_id_even_when_llm_label_changes(user_id):
+    dossier.save(user_id, [claim("basket weaving", cid="llm-aaa")], "a", "reflection")
+    v1 = dossier.current(user_id)
+    dossier.save(user_id, [claim("basket weaving", cid="llm-zzz")], "b", "reflection")
+    v2 = dossier.current(user_id)
+    assert v1["claims"][0]["id"] == v2["claims"][0]["id"]
+    assert dossier.diff(v2, v1)["added"] == []
 
 
 def test_striking_a_claim_removes_its_probe_from_retrieval(user_id, catalog, monkeypatch):
     """The headline behaviour. A '+interest' claim IS a retrieval probe, so
     disabling it must change what comes back."""
     weaving, sourdough = catalog
-    dossier.save(user_id, [claim("c1", "underwater basket weaving with reeds"),
-                           claim("c2", "sourdough fermentation and wild yeast")],
+    dossier.save(user_id, [claim("underwater basket weaving with reeds"),
+                           claim("sourdough fermentation and wild yeast")],
                  "You like both.", "reflection")
+    weave_id = _id_for("underwater basket weaving with reeds")
+    dough_id = _id_for("sourdough fermentation and wild yeast")
 
     both = retrieval.retrieve(user_id, claims=dossier.enabled_claims(user_id))
     ids = {c["id"] for c in both["candidates"]}
     assert weaving in ids and sourdough in ids, "fixture products were not retrievable"
 
-    # Now insist the weaving claim is wrong, and forbid any LLM call while doing it.
     def explode(*a, **k):
         raise AssertionError("striking a claim must not call an LLM")
     monkeypatch.setattr("app.mesh.chat", explode)
 
-    dossier.set_enabled(user_id, "c1", False)
+    dossier.set_enabled(user_id, weave_id, False)
     after = retrieval.retrieve(user_id, claims=dossier.enabled_claims(user_id))
 
     probes = {p["name"] for p in after["probes"]}
-    assert "claim:c1" not in probes, "the struck claim still fired a probe"
-    assert "claim:c2" in probes, "the surviving claim stopped firing"
+    assert f"claim:{weave_id}" not in probes, "the struck claim still fired a probe"
+    assert f"claim:{dough_id}" in probes, "the surviving claim stopped firing"
 
     scores = {c["id"]: c["rrf"] for c in after["candidates"]}
     assert scores.get(weaving, 0) < {c["id"]: c["rrf"] for c in both["candidates"]}[weaving]
 
 
 def test_striking_writes_a_user_edit_version_with_template_prose(user_id, monkeypatch):
-    dossier.save(user_id, [claim("c1", "basket weaving"),
-                           claim("c2", "sourdough baking")], "LLM prose.", "reflection")
+    dossier.save(user_id, [claim("basket weaving"),
+                           claim("sourdough baking")], "LLM prose.", "reflection")
 
     def explode(*a, **k):
         raise AssertionError("no LLM call permitted on a user edit")
     monkeypatch.setattr("app.mesh.chat", explode)
 
-    d = dossier.set_enabled(user_id, "c1", False)
+    d = dossier.set_enabled(user_id, _id_for("basket weaving"), False)
     assert d["source"] == "user_edit"
     assert d["version"] == 2
     assert "sourdough" in d["prose"], "prose should reflect the surviving claims"
@@ -107,26 +123,28 @@ def test_striking_writes_a_user_edit_version_with_template_prose(user_id, monkey
 
 
 def test_a_struck_claim_can_be_put_back(user_id):
-    dossier.save(user_id, [claim("c1", "basket weaving")], "a", "reflection")
-    dossier.set_enabled(user_id, "c1", False)
+    dossier.save(user_id, [claim("basket weaving")], "a", "reflection")
+    cid = _id_for("basket weaving")
+    dossier.set_enabled(user_id, cid, False)
     assert dossier.enabled_claims(user_id) == []
-    dossier.set_enabled(user_id, "c1", True)
+    dossier.set_enabled(user_id, cid, True)
     assert len(dossier.enabled_claims(user_id)) == 1
 
 
 def test_candidates_carry_probe_attribution(user_id, catalog):
     """'surfaced by <claim>' in the UI has to be real, not decorative."""
-    dossier.save(user_id, [claim("c1", "underwater basket weaving with reeds")],
+    dossier.save(user_id, [claim("underwater basket weaving with reeds")],
                  "a", "reflection")
+    cid = _id_for("underwater basket weaving with reeds")
     r = retrieval.retrieve(user_id, claims=dossier.enabled_claims(user_id))
     hit = next(c for c in r["candidates"] if c["id"] == catalog[0])
     assert hit["because"], "no attribution recorded"
-    assert any(b["probe"] == "claim:c1" for b in hit["because"])
+    assert any(b["probe"] == f"claim:{cid}" for b in hit["because"])
 
 
 def test_claim_count_is_capped(user_id):
     """A dossier that grows without bound stops being readable, and readability
     is the entire point of the slow tier."""
-    many = [claim(f"c{i}", f"subject number {i}") for i in range(20)]
+    many = [claim(f"subject number {i}") for i in range(20)]
     d = dossier.save(user_id, many, "lots", "reflection")
     assert len(d["claims"]) == dossier.MAX_CLAIMS

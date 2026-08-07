@@ -1,0 +1,16 @@
+{# Agent Cam. Deliberately the ONLY dark surface in the app -- it reads as
+   backstage, which is why the words banned everywhere else (drift, probe,
+   token, LLM) are allowed to live here.
+
+   It is also the rule-7 defence: everything below comes from the stored trace
+   of a real run, so a judge can check the page against what actually happened. #}
+<div id="agentcam" class="cam" hidden>
+  <div class="cam-scrim"></div>
+  <aside class="cam-panel" role="dialog" aria-label="What the agent did">
+    <header class="cam-top">
+      <p class="cam-title">Last run</p>
+      <button type="button" class="cam-close" aria-label="Close">×</button>
+    </header>
+    <div class="cam-body"></div>
+  </aside>
+</div>

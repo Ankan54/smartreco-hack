@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div style="margin:3rem 0 1rem">
-  {% set total = counts.values()|sum %}
-  <p class="eyebrow">{{ total }} course{{ '' if total == 1 else 's' }}</p>
-  <h1 style="max-width:16ch">Find the next thing worth your time.</h1>
+{% set total = counts.values()|sum %}
+<div class="page-hero">
+  <p class="eyebrow">{{ total }} course{{ '' if total == 1 else 's' }} · Reckon</p>
+  <h1>Find the next thing worth your time.</h1>
+  <p class="page-lead">Browse until your bearing settles — the chart keeps up as you move.</p>
 </div>
 
-<form method="get" action="/" style="display:flex;gap:.6rem;max-width:520px;margin:1.5rem 0">
+<form method="get" action="/" class="search-row">
   <input type="text" name="q" value="{{ q }}" placeholder="Search courses, skills, tools"
          aria-label="Search courses" id="search-input" autocomplete="off">
   <button class="btn" type="submit">Search</button>
@@ -22,7 +23,7 @@
 </div>
 
 {% if not products %}
-  <p class="dim" style="margin:4rem 0">Nothing matches that yet. Try a broader search.</p>
+  <p class="dim empty-msg">Nothing matches that yet. Try a broader search.</p>
 {% endif %}
 
 <div class="grid" id="grid">
@@ -34,7 +35,7 @@
     <div class="meta">
       <span class="price">{% if p.price %}₹{{ '{:,.0f}'.format(p.price) }}{% else %}Free{% endif %}</span>
       {% if p.level %}<span>{{ p.level }}</span>{% endif %}
-      {% if p.rating %}<span>★ {{ '%.1f'|format(p.rating) }}</span>{% endif %}
+      {% if p.rating %}<span>{{ '%.1f'|format(p.rating) }}</span>{% endif %}
     </div>
   </a>
   {% endfor %}

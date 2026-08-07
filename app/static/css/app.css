@@ -87,8 +87,16 @@ header.top {
   display: flex; align-items: baseline; gap: .45rem;
 }
 .brand::before {
-  content: ""; width: 9px; height: 9px; border-radius: 50%;
-  border: 1.5px solid var(--buff); display: inline-block;
+  content: "";
+  width: 12px; height: 12px;
+  display: inline-block;
+  flex-shrink: 0;
+  background:
+    linear-gradient(var(--buff), var(--buff)) center / 1.5px 100% no-repeat,
+    linear-gradient(var(--buff), var(--buff)) center / 100% 1.5px no-repeat;
+  border: 1.5px solid var(--buff);
+  border-radius: 50%;
+  align-self: center;
 }
 .top nav { margin-left: auto; display: flex; align-items: center; gap: 1.25rem; }
 .top nav a { color: var(--slate); text-decoration: none; font-size: .92rem; }
@@ -99,33 +107,46 @@ header.top {
    flushes signal-magenta when the agent wakes. No number, no label — it explains
    itself by responding to you. Angle is driven by the real drift value.       */
 .horizon {
-  height: 3px;
+  height: 10px;
   position: relative;
   overflow: hidden;
   background: transparent;
 }
+.horizon::before, .horizon::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  width: 7px; height: 7px;
+  border-top: 1.5px solid var(--rule);
+  border-right: 1.5px solid var(--rule);
+  opacity: .7;
+  z-index: 1;
+  pointer-events: none;
+}
+.horizon::before { left: 12%; transform: rotate(-45deg); }
+.horizon::after  { right: 12%; transform: rotate(135deg); }
 .horizon i {
   position: absolute;
-  left: -10%; right: -10%; top: 1px;
-  height: 1px;
+  left: 8%; right: 8%; top: 4px;
+  height: 1.5px;
   display: block;
   background: var(--rule);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
   transform: rotate(var(--tilt, 0deg));
   transform-origin: center;
   transition: transform 1.4s cubic-bezier(.22,.61,.36,1), background-color .5s, height .3s;
 }
 .horizon[data-state="drifting"] i { background: var(--buff); }
+.horizon[data-state="drifting"]::before,
+.horizon[data-state="drifting"]::after { border-color: var(--buff); }
 .horizon[data-state="crossed"] i {
   background: var(--signal);
-  height: 2px;
+  height: 2.5px;
   transform: rotate(0deg);
 }
-.horizon button {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  border: 0; background: none; padding: 0;
-  cursor: pointer;
-}
+.horizon[data-state="crossed"]::before,
+.horizon[data-state="crossed"]::after { border-color: var(--signal); }
 
 /* ---- catalog grid --------------------------------------------------------- */
 .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.25rem 0 2rem; }
@@ -165,7 +186,7 @@ header.top {
   transition: background .15s, opacity .2s;
 }
 .card:hover { background: var(--tint); }
-.card h3 { font-size: 1.02rem; font-weight: 500; }
+.card h3 { font-size: 1.05rem; font-weight: 500; letter-spacing: -0.015em; }
 .card .meta {
   font: 400 .72rem/1.4 var(--mono);
   color: var(--slate);
@@ -245,6 +266,20 @@ footer.foot {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 
+.admin-head {
+  display: flex; align-items: flex-end; gap: 1.5rem;
+  margin: 3rem 0 1.5rem; flex-wrap: wrap;
+}
+.admin-head .btn { margin-left: auto; }
+.admin-title { margin: .5rem 0 0; }
+.admin-edit { max-width: 680px; margin: 3rem auto; }
+.admin-edit .auth-title { margin: .5rem 0 2rem; }
+.admin-grid-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.15rem;
+}
+.admin-actions { display: flex; gap: .75rem; margin-top: .5rem; }
+.admin-edit form { display: grid; gap: 1.15rem; }
+
 /* ---- admin ---------------------------------------------------------------- */
 /* The sync badge. Three numbers that must always agree; if they don't, that's
    a dual-write bug and the page should say so loudly. */
@@ -277,11 +312,17 @@ footer.foot {
   letter-spacing: .12em; text-transform: uppercase; color: var(--buff);
   padding: .8rem 1rem; border-bottom: 1px solid var(--rule);
 }
-.admin-table td { padding: .8rem 1rem; border-bottom: 1px solid var(--rule); font-size: .9rem; }
+.admin-table td {
+  padding: .8rem 1rem; border-bottom: 1px solid var(--rule);
+  font-size: .9rem; vertical-align: middle;
+}
 .admin-table tr:last-child td { border-bottom: 0; }
 .admin-table tr:hover td { background: var(--tint); }
 .admin-table .num { font-family: var(--mono); font-size: .82rem; }
-.row-actions { display: flex; gap: .9rem; align-items: center; justify-content: flex-end; }
+/* Flex on a <td> breaks row height when a sibling cell wraps — keep the cell
+   a normal table cell and lay out the controls inline. */
+.row-actions { white-space: nowrap; text-align: right; }
+.row-actions a + form { margin-left: .9rem; }
 .row-actions form { display: inline; }
 .linkish {
   background: none; border: 0; padding: 0; cursor: pointer;
@@ -383,3 +424,231 @@ textarea { font-family: var(--ui); line-height: 1.6; resize: vertical; }
   font-family: var(--mono); font-size: .72rem; color: var(--signal); opacity: 1;
 }
 @media (prefers-reduced-motion: reduce) { .picks.settling .pick { animation: none; } }
+
+/* ---- chart-room page chrome ---------------------------------------------- */
+.page-hero {
+  margin: 2.75rem 0 1.25rem;
+  padding: 1.5rem 1.35rem 1.35rem;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(to right,  rgba(15,92,119,.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,92,119,.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  position: relative;
+}
+.page-hero.tight { margin-top: 2rem; }
+.page-hero::before, .page-hero::after {
+  content: "";
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--buff);
+  border-style: solid;
+}
+.page-hero::before {
+  top: 6px; left: 6px;
+  border-width: 1.5px 0 0 1.5px;
+}
+.page-hero::after {
+  bottom: 6px; right: 6px;
+  border-width: 0 1.5px 1.5px 0;
+}
+.page-hero h1 { max-width: 18ch; margin: .45rem 0 0; }
+.page-lead {
+  font-family: var(--read);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--slate);
+  max-width: 42ch;
+  margin: .85rem 0 0;
+}
+.search-row {
+  display: flex; gap: .6rem;
+  max-width: 520px;
+  margin: 1.5rem 0;
+}
+.empty-msg { margin: 4rem 0; }
+.welcome-panel { max-width: 640px; margin: 4rem auto; }
+.welcome-panel .filters { margin-top: 1.5rem; }
+.start-btn { margin-top: 1.5rem; }
+.detail-title { margin: .6rem 0 1.2rem; }
+.skills-row { margin-top: 2rem; }
+.price-lg { font-size: 1.6rem; font-weight: 500; margin: 0 0 1.25rem; }
+.stack-gap { display: grid; gap: 1rem; }
+.mt-section { margin-top: 2.5rem; }
+.mt-related { margin-top: 4rem; }
+.related-grid { margin-top: 1rem; }
+.btn.block { width: 100%; }
+.aside-meta { margin-top: 1.5rem; }
+.dossier-panel { border-left: 2px solid var(--buff); }
+.dossier-empty { font-size: .9rem; margin-top: 1rem; }
+.auth-title { margin: .5rem 0 2rem; }
+.auth-switch { margin-top: 1.5rem; font-size: .9rem; }
+.hint-line { font-size: .82rem; margin: 0; }
+
+.pw-field {
+  position: relative;
+  display: block;
+}
+.pw-field input {
+  padding-right: 2.6rem;
+}
+.pw-toggle {
+  position: absolute;
+  right: .35rem; top: 50%;
+  transform: translateY(-50%);
+  width: 2rem; height: 2rem;
+  border: 0; background: none;
+  color: var(--slate);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border-radius: var(--radius);
+}
+.pw-toggle:hover { color: var(--ink); }
+.pw-toggle[aria-pressed="true"] { color: var(--depth); }
+/* SVG ignores the HTML `hidden` attribute in some browsers — toggle via CSS. */
+.pw-toggle .pw-eye-off { display: none; }
+.pw-toggle[aria-pressed="true"] .pw-eye { display: none; }
+.pw-toggle[aria-pressed="true"] .pw-eye-off { display: block; }
+
+/* ---- profile menu -------------------------------------------------------- */
+.profile { position: relative; margin-left: .25rem; }
+.profile-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--buff);
+  background: var(--paper);
+  color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
+}
+.profile-btn:hover, .profile.open .profile-btn {
+  border-color: var(--depth); color: var(--depth);
+}
+.profile-drop {
+  position: absolute; right: 0; top: calc(100% + 8px);
+  min-width: 168px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(14,36,54,.08);
+  padding: .35rem 0;
+  z-index: 50;
+}
+.profile-drop[hidden] { display: none; }
+.profile-drop a, .profile-drop .profile-cam {
+  display: block;
+  width: 100%;
+  padding: .55rem 1rem;
+  color: var(--ink);
+  text-decoration: none;
+  font: inherit;
+  font-size: .92rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.profile-drop a:hover, .profile-drop a[aria-current],
+.profile-drop .profile-cam:hover {
+  background: var(--tint); color: var(--ink);
+}
+
+/* ---- Agent Cam: only dark surface ---------------------------------------- */
+.cam {
+  position: fixed; inset: 0; z-index: 80;
+  pointer-events: none;
+}
+.cam:not([hidden]) { pointer-events: auto; }
+.cam-scrim {
+  position: absolute; inset: 0;
+  background: rgba(14,36,54,.45);
+  opacity: 0; transition: opacity .2s;
+}
+.cam-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: min(420px, 100%);
+  background: var(--ink);
+  color: #D7E3EC;
+  font-family: var(--mono);
+  font-size: .82rem;
+  transform: translateX(100%);
+  transition: transform .22s cubic-bezier(.22,.61,.36,1);
+  display: flex; flex-direction: column;
+  border-left: 1px solid #1E3A4F;
+}
+.cam.in .cam-scrim { opacity: 1; }
+.cam.in .cam-panel { transform: translateX(0); }
+.cam-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid #1E3A4F;
+}
+.cam-title {
+  margin: 0;
+  font: 500 .68rem/1 var(--mono);
+  letter-spacing: .14em; text-transform: uppercase;
+  color: #8FAABB;
+}
+.cam-close {
+  background: none; border: 0; color: #8FAABB;
+  font-size: 1.35rem; cursor: pointer; line-height: 1;
+}
+.cam-close:hover { color: #fff; }
+.cam-body { overflow: auto; padding: 1rem 1.1rem 2rem; flex: 1; }
+.cam-loading { color: #8FAABB; }
+.cam-facts { display: grid; gap: .45rem; margin-bottom: 1.25rem; }
+.kv { display: grid; grid-template-columns: 7.5rem 1fr; gap: .5rem; }
+.kv .k { color: #8FAABB; }
+.kv .v { color: #E8F1F7; }
+.cam-h {
+  margin: 1.25rem 0 .6rem;
+  font: 500 .68rem/1 var(--mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: #8FAABB;
+}
+.cam-graph { display: grid; gap: .35rem; }
+.gnode {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .35rem .5rem;
+  border: 1px solid #1E3A4F;
+  border-radius: 2px;
+}
+.gnode.on { border-color: var(--signal); color: #fff; }
+.gnode.off { opacity: .45; }
+.gnode .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #1E3A4F;
+}
+.gnode.on .dot { background: var(--signal); }
+.gloop, .gskip { margin-left: auto; color: #8FAABB; font-size: .7rem; }
+.cam-steps { display: grid; gap: .4rem; }
+.step {
+  border: 1px solid #1E3A4F;
+  border-radius: 2px;
+  padding: .2rem .55rem;
+}
+.step summary {
+  cursor: pointer; display: flex; gap: .6rem; align-items: center;
+  list-style: none; padding: .35rem 0;
+}
+.step summary::-webkit-details-marker { display: none; }
+.step .sms { color: #8FAABB; margin-left: auto; }
+.stag { font-size: .65rem; letter-spacing: .06em; padding: .1rem .35rem; border: 1px solid #1E3A4F; }
+.stag.hit { color: #7DCFB6; border-color: #7DCFB6; }
+.stag.miss { color: var(--signal); border-color: var(--signal); }
+.sjson {
+  margin: 0 0 .5rem;
+  white-space: pre-wrap;
+  color: #B7C9D6;
+  font-size: .72rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cam-scrim, .cam-panel { transition: none; }
+}
+
+/* Meta actions at the foot of the dossier panel. */
+.panel-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.gnode .gname { font-family: var(--mono); }
+.step .sname { font-family: var(--mono); }

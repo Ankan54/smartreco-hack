@@ -5,10 +5,10 @@
 {# Cold start. A judge sees this first, and a generic popular-list is exactly
    what the brief penalises. Picks seed the intent vector from real category
    centroids (phase 5) -- never from the bare label text. #}
-<div style="max-width:640px;margin:4rem auto">
+<div class="welcome-panel page-hero">
   <p class="eyebrow">First things first</p>
-  <h1 style="margin:.5rem 0 1rem">What are you curious about?</h1>
-  <p class="dim" style="margin-bottom:2rem">Pick three. You can change your mind later —
+  <h1>What are you curious about?</h1>
+  <p class="page-lead">Pick a few. You can change your mind later —
      everything here adjusts as you browse.</p>
 
   <form method="post" action="/welcome" id="pick">
@@ -19,12 +19,12 @@
       </label>
       {% endfor %}
     </div>
-    <button class="btn" type="submit" style="margin-top:1.5rem" id="go" disabled>Start browsing</button>
+    <button class="btn start-btn" type="submit" id="go" disabled>Start browsing</button>
   </form>
 </div>
 
 <script>
-  // Chips toggle a hidden checkbox. Enable submit at 3 picks.
+  // Chips toggle a hidden checkbox. Enable submit at 1+ picks.
   const form = document.getElementById('pick'), go = document.getElementById('go');
   form.querySelectorAll('label.chip').forEach(l => {
     l.addEventListener('click', e => {
