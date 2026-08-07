@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import config, db
+from app import config, db, vectors
 from app.routes import admin, api, pages
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -14,6 +14,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init()
+    problem = vectors.check_index_model()
+    if problem:
+        logging.getLogger(__name__).error("STARTUP: %s", problem)
     yield
 
 

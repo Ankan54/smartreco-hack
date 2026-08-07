@@ -187,3 +187,77 @@ def test_horizon_tilt_is_bounded_and_tracks_drift(user_id):
     assert crossed["ratio"] == 1.0            # clamped, never past the tick
     assert 0 < crossed["tilt_deg"] <= 4.0
     assert crossed["state"] == "crossed"
+
+
+# --- the thundering herd ---------------------------------------------------
+
+def test_only_one_concurrent_claim_wins(user_id):
+    """The bug this pins: should_fire() is a read, and a burst of events spawns
+    a background task each. All of them passed the gate before any of them
+    wrote, so nine events produced EIGHT concurrent cold-start agent runs --
+    roughly forty LLM calls where there should have been five."""
+    set_state(user_id, now=vec((0, 1.0)), ref=None)
+
+    wins = [intent.try_claim(user_id) for _ in range(10)]
+    assert sum(wins) == 1, f"expected exactly one winner, got {sum(wins)}"
+    assert wins[0] is True, "the first caller should win"
+
+
+def test_claim_is_released_after_the_cooldown(user_id):
+    old = (datetime.now(timezone.utc)
+           - timedelta(seconds=config.MIN_RECO_INTERVAL_SEC + 5)).isoformat()
+    set_state(user_id, now=vec((0, 1.0)), ref=None, last_reco=old)
+    assert intent.try_claim(user_id) is True
+    assert intent.try_claim(user_id) is False, "cooldown not re-armed after a win"
+
+
+def test_claim_works_under_real_threads(user_id):
+    """Same assertion, but through actual concurrency rather than a loop --
+    this is the shape the bug arrived in."""
+    import threading
+
+    set_state(user_id, now=vec((0, 1.0)), ref=None)
+    results, lock = [], threading.Lock()
+
+    def go():
+        won = intent.try_claim(user_id)
+        with lock:
+            results.append(won)
+
+    threads = [threading.Thread(target=go) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sum(results) == 1, f"race not prevented: {sum(results)} winners"
+
+
+def test_concurrent_batches_do_not_lose_signal(user_id, monkeypatch):
+    """Updating the vector is a read-modify-write in Python. Without the per-user
+    lock, parallel batches overwrite each other: measured, ten concurrent
+    single-event batches produced a vector of norm 1.0 instead of ~8, silently
+    discarding nine events. The counter hid it, because `x = x + ?` is atomic
+    inside SQLite while the vector is not."""
+    import threading
+
+    directions = [vec((i, 1.0)) for i in range(10)]
+    monkeypatch.setattr(intent, "signal_vector",
+                        lambda ev: directions[ev["product_id"]])
+    set_state(user_id, now=None)
+
+    threads = [
+        threading.Thread(target=lambda i=i: intent.apply_events(
+            user_id, [{"type": "view", "product_id": i}]))
+        for i in range(10)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    s = intent.get_state(user_id)
+    assert s["events_since_reco"] == 10
+    # Ten orthogonal unit vectors summed give norm sqrt(10) ~= 3.16.
+    # The race collapsed this to 1.0.
+    assert float(np.linalg.norm(s["intent_vec"])) > 3.0

@@ -48,6 +48,12 @@ def process(user_id: int, events: list[dict]) -> None:
         if not fire:
             log.debug("user %s: no fire (%s) drift=%.4f", user_id, reason, drift)
             return
+        # should_fire() is a read; two concurrent batches can both pass it.
+        # try_claim() is the atomic write that decides which one actually runs.
+        if not intent.try_claim(user_id):
+            log.info("user %s: %s suppressed, another run already claimed it",
+                     user_id, reason)
+            return
         log.info("user %s: firing agent (%s) drift=%.4f events=%s",
                  user_id, reason, drift, state["events_since_reco"])
         agent.run(user_id, reason, drift=drift)

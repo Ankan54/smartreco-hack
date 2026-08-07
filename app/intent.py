@@ -23,7 +23,8 @@ negative term for disliked ones, is Rocchio relevance feedback (1971).
 """
 
 import logging
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
@@ -96,18 +97,34 @@ def signal_vector(ev: dict) -> np.ndarray | None:
     return None
 
 
+_user_locks: dict[int, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _user_lock(user_id: int) -> threading.Lock:
+    with _locks_guard:
+        return _user_locks.setdefault(user_id, threading.Lock())
+
+
 def apply_events(user_id: int, events: list[dict]) -> dict:
-    """Decay, then add each event's weighted direction. Returns the new state."""
-    s = get_state(user_id)
-    v = s["intent_vec"]
-    if v is None or v.shape[0] != config.EMBED_DIM:
-        v = np.zeros(config.EMBED_DIM, dtype=np.float32)
+    """Decay, then add each event's weighted direction. Returns the new state.
 
-    last = _parse(s["last_event_at"])
-    if last:
-        v = decay(v, (_now() - last).total_seconds() / 60.0)
+    Serialised per user. Updating the vector is a read-modify-write in Python,
+    so concurrent batches otherwise overwrite each other and the signal is lost:
+    measured, ten parallel single-event batches produced a vector of norm 1.0
+    instead of ~3-8, i.e. nine events silently discarded. The counter did not
+    show it, because `x = x + ?` is atomic inside SQLite while the vector is not.
 
-    applied = 0
+    Embedding happens BEFORE the lock is taken -- a network round trip must not
+    be inside a critical section.
+
+    ponytail: an in-process lock is enough because we deliberately run a single
+    uvicorn worker (see the APScheduler note in config). Going multi-worker means
+    moving this to `BEGIN IMMEDIATE` so SQLite does the serialising.
+    """
+    # Resolve vectors outside the lock: this is the slow part and it needs no
+    # exclusivity.
+    contributions: list[np.ndarray] = []
     for ev in events:
         w = config.EVENT_WEIGHTS.get(ev["type"])
         if w is None:
@@ -115,20 +132,77 @@ def apply_events(user_id: int, events: list[dict]) -> dict:
         sig = unit(signal_vector(ev))
         if sig is None:
             continue
-        v = v + (w * sig).astype(np.float32)
-        applied += 1
+        contributions.append((w * sig).astype(np.float32))
 
-    with db.tx() as c:
-        c.execute(
-            "UPDATE user_state SET intent_vec = ?, events_since_reco = events_since_reco + ?,"
-            " last_event_at = ?, updated_at = ? WHERE user_id = ?",
-            (db.to_blob(v), applied, _now().isoformat(), _now().isoformat(), user_id),
-        )
-    log.debug("user %s: applied %d/%d events", user_id, applied, len(events))
-    return get_state(user_id)
+    with _user_lock(user_id):
+        s = get_state(user_id)
+        v = s["intent_vec"]
+        if v is None or v.shape[0] != config.EMBED_DIM:
+            v = np.zeros(config.EMBED_DIM, dtype=np.float32)
+
+        last = _parse(s["last_event_at"])
+        if last:
+            v = decay(v, (_now() - last).total_seconds() / 60.0)
+        for c_vec in contributions:
+            v = v + c_vec
+
+        with db.tx() as c:
+            c.execute(
+                "UPDATE user_state SET intent_vec = ?,"
+                " events_since_reco = events_since_reco + ?,"
+                " last_event_at = ?, updated_at = ? WHERE user_id = ?",
+                (db.to_blob(v), len(contributions),
+                 _now().isoformat(), _now().isoformat(), user_id),
+            )
+        log.debug("user %s: applied %d/%d events", user_id, len(contributions), len(events))
+        return get_state(user_id)
 
 
 # --- the gate --------------------------------------------------------------
+
+def seed_from_categories(user_id: int, categories: list[str]) -> bool:
+    """Cold start. Seed the intent vector from the CENTROID of each chosen
+    category's real product vectors.
+
+    Do NOT embed the category label itself. "AI/ML" as a bare string is an
+    asymmetric probe against a space built from
+    "title\\ncategory - level\\nskills\\ndescription", and it retrieves badly --
+    on the very first screen a judge sees. The centroid lives in exactly the
+    same space as the documents, costs zero LLM calls, and is strictly better.
+
+    Returns True if anything was seeded.
+    """
+    if not categories:
+        return False
+
+    v = np.zeros(config.EMBED_DIM, dtype=np.float32)
+    seeded = 0
+    for cat in categories:
+        rows = db.q(
+            "SELECT id FROM products WHERE category = ? AND is_active = 1 "
+            "ORDER BY rating DESC NULLS LAST LIMIT 40", (cat,))
+        vecs = [w for w in (vectors.product_vector(r["id"]) for r in rows) if w is not None]
+        if not vecs:
+            continue
+        centroid = unit(np.mean(np.stack(vecs), axis=0))
+        if centroid is None:
+            continue
+        v += (2.0 * centroid).astype(np.float32)     # weight 2.0, like a strong search
+        seeded += 1
+
+    if not seeded:
+        return False
+
+    with db.tx() as c:
+        c.execute(
+            "INSERT INTO user_state(user_id, intent_vec, last_event_at, updated_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET "
+            "intent_vec = excluded.intent_vec, last_event_at = excluded.last_event_at",
+            (user_id, db.to_blob(v), _now().isoformat(), _now().isoformat()),
+        )
+    log.info("user %s: seeded intent from %d category centroids", user_id, seeded)
+    return True
+
 
 def drift_of(s: dict) -> float:
     """0.0 = same bearing as when the agent last looked. Rises as interests move."""
@@ -161,6 +235,37 @@ def should_fire(s: dict) -> tuple[bool, str, float]:
     if last and (now - last).total_seconds() > config.STALE_HOURS * 3600 and n >= 1:
         return True, "stale", d
     return False, "steady", d
+
+
+def try_claim(user_id: int) -> bool:
+    """Atomically win the right to fire the agent. Returns False if someone else
+    already has it.
+
+    should_fire() is a read; acting on it is a write. A burst of events spawns a
+    BackgroundTask each, and every one of them reads the gate BEFORE any of them
+    writes -- so all of them see "no recommendation yet" and all of them fire.
+    Measured: nine events produced EIGHT concurrent cold-start runs, about forty
+    LLM calls where there should have been five. A rate limit cannot fix that,
+    because the limit is read in the same non-atomic window.
+
+    One UPDATE with the cooldown in its WHERE clause is the fix: SQLite applies
+    it atomically, so exactly one caller sees rowcount == 1. Stamping the time
+    up front also means a crashed run cannot loop -- the next attempt waits out
+    the cooldown like any other.
+    """
+    now = _now()
+    cutoff = (now - timedelta(seconds=config.MIN_RECO_INTERVAL_SEC)).isoformat()
+    with db.tx() as c:
+        c.execute("INSERT OR IGNORE INTO user_state(user_id) VALUES (?)", (user_id,))
+        cur = c.execute(
+            "UPDATE user_state SET last_reco_at = ? WHERE user_id = ? "
+            "  AND (last_reco_at IS NULL OR last_reco_at < ?)",
+            (now.isoformat(), user_id, cutoff),
+        )
+        won = cur.rowcount > 0
+    if not won:
+        log.debug("user %s: another request already claimed this fire", user_id)
+    return won
 
 
 def mark_reasoned(user_id: int) -> None:

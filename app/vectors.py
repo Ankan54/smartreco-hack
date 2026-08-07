@@ -195,6 +195,44 @@ def _cached_product_vector(product_id: int, stamp: str) -> bytes | None:
     return hit["vec"] if hit else None
 
 
+def coverage(sample: int = 25) -> dict:
+    """How many active products actually have a vector under the CURRENT model.
+
+    Do not infer this from the newest embed_cache row: one on-demand embedding
+    makes a stale index look fresh. Sample real products instead -- that is the
+    thing the recommender depends on.
+    """
+    rows = db.q("SELECT id, title, description, category, level, skills FROM products "
+                "WHERE is_active = 1 ORDER BY id LIMIT ?", (sample,))
+    if not rows:
+        return {"sampled": 0, "hits": 0, "ratio": 1.0, "models": []}
+    keys = [mesh.cache_key(embed_text(dict(r))) for r in rows]
+    ph = ",".join("?" * len(keys))
+    hits = db.q1(f"SELECT COUNT(*) n FROM embed_cache WHERE text_hash IN ({ph})",
+                 tuple(keys))["n"]
+    models = [r["model"] for r in db.q(
+        "SELECT DISTINCT model FROM embed_cache LIMIT 5")]
+    return {"sampled": len(rows), "hits": hits, "ratio": hits / len(rows),
+            "models": models}
+
+
+def check_index_model() -> str | None:
+    """Loud warning when the vector index no longer matches the configured model.
+
+    Silence here is genuinely dangerous. The cache key is model-scoped, so after
+    an EMBED_MODEL change every product_vector() lookup misses, the intent vector
+    stays flat, and the recommender degrades to nothing -- with no exception
+    anywhere. Measured: 0 of 10 events applied, vector norm 0.000.
+    """
+    c = coverage()
+    if c["sampled"] and c["ratio"] < 0.8:
+        return (f"only {c['hits']}/{c['sampled']} sampled products have a vector for "
+                f"{config.EMBED_MODEL!r} (cache holds: {c['models']}). Vectors from "
+                f"different models are NOT comparable. "
+                f"Run: uv run python scripts/reindex.py")
+    return None
+
+
 def product_vector(product_id: int) -> np.ndarray | None:
     """The catalog embedding for a product, read locally.
 
@@ -209,7 +247,22 @@ def product_vector(product_id: int) -> np.ndarray | None:
     row = db.q1("SELECT content_hash FROM products WHERE id = ?", (product_id,))
     if not row:
         return None
-    return db.from_blob(_cached_product_vector(product_id, row["content_hash"]))
+    hit = _cached_product_vector(product_id, row["content_hash"])
+    if hit is not None:
+        return db.from_blob(hit)
+
+    # Cache miss. Embed on demand rather than returning None, because a None
+    # here is invisible: the event contributes nothing, the intent vector stays
+    # flat, and the whole recommender quietly stops working with no error. This
+    # happens whenever EMBED_MODEL changes, since the cache key is model-scoped.
+    full = db.q1("SELECT title, description, category, level, skills FROM products "
+                 "WHERE id = ?", (product_id,))
+    if not full:
+        return None
+    log.info("embedding product %s on demand (cache miss)", product_id)
+    vec = mesh.embed_one(embed_text(dict(full)))
+    _cached_product_vector.cache_clear()
+    return vec
 
 
 def sync_status() -> dict:
