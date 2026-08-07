@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'user',
   onboarded     INTEGER NOT NULL DEFAULT 0,
+  -- Opt-in, default off. Signup addresses are unverified, so mailing everyone
+  -- who registered would be unsolicited email to strangers.
+  digest_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -74,6 +77,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
   drift      REAL,
   trace_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  delivered_at TEXT,
   is_current INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_reco_user ON recommendations(user_id, id DESC);
@@ -127,9 +131,21 @@ def tx():
         raise
 
 
+# Columns added after the first schema shipped. SQLite has no "ADD COLUMN IF NOT
+# EXISTS", and a dev database that predates them should not need deleting.
+MIGRATIONS = [
+    ("users", "digest_opt_in", "INTEGER NOT NULL DEFAULT 0"),
+    ("recommendations", "delivered_at", "TEXT"),
+]
+
+
 def init() -> None:
     with tx() as c:
         c.executescript(SCHEMA)
+        for table, column, decl in MIGRATIONS:
+            cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def q(sql: str, args=()) -> list[sqlite3.Row]:

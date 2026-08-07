@@ -92,6 +92,20 @@
       .catch(function () { li.classList.toggle("struck", !striking); });
   });
 
+  var optIn = document.getElementById("digest-opt-in");
+  var optStatus = document.getElementById("digest-status");
+  if (optIn) {
+    optIn.addEventListener("change", function () {
+      post("/api/digest/opt-in?enabled=" + optIn.checked).then(function (d) {
+        if (!d) return;
+        optStatus.hidden = false;
+        optStatus.textContent = !d.opted_in
+          ? "digest off"
+          : (d.delivery_configured ? "digest on" : "digest on, but email is not configured yet");
+      });
+    });
+  }
+
   var refresh = document.getElementById("refresh-picks");
   if (refresh) {
     refresh.addEventListener("click", function () {

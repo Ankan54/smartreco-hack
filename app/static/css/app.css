@@ -652,3 +652,12 @@ textarea { font-family: var(--ui); line-height: 1.6; resize: vertical; }
 .panel-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 .gnode .gname { font-family: var(--mono); }
 .step .sname { font-family: var(--mono); }
+
+/* Digest opt-in. Default off, and the label says exactly where it goes. */
+.digest-opt {
+  display: flex; gap: .55rem; align-items: flex-start;
+  margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+  font-size: .88rem; cursor: pointer;
+}
+.digest-opt input { width: auto; margin-top: .2rem; flex-shrink: 0; }
+.digest-opt .hint { display: block; font-size: .78rem; color: var(--slate); margin-top: .15rem; }

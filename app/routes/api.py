@@ -18,7 +18,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, Field
 
-from app import agent, auth, config, db, dossier, intent, mesh, retrieval
+from app import agent, auth, config, db, dossier, intent, mesh, notify, retrieval
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -211,3 +211,32 @@ def trace(user=Depends(auth.require_user)):
         },
         "cache": mesh.cache_stats(),
     }
+
+
+# --- digest opt-in ---------------------------------------------------------
+
+@router.post("/digest/opt-in")
+def digest_opt_in(enabled: bool = True, user=Depends(auth.require_user)):
+    """Explicit consent. Signup addresses are never verified, so the scheduler
+    only ever mails people who asked for it."""
+    with db.tx() as c:
+        c.execute("UPDATE users SET digest_opt_in = ? WHERE id = ?",
+                  (1 if enabled else 0, user["id"]))
+    return {"opted_in": enabled, "email": user["email"],
+            "delivery_configured": notify.enabled()}
+
+
+@router.post("/digest/send")
+def digest_send(user=Depends(auth.require_user)):
+    """Send this user's digest now. Exists so the scheduled path can be proven
+    without waiting for the clock -- it calls exactly the same code."""
+    if not notify.enabled():
+        return {"sent": False, "reason": "SMTP is not configured"}
+    if not db.q1("SELECT digest_opt_in FROM users WHERE id = ?",
+                 (user["id"],))["digest_opt_in"]:
+        return {"sent": False, "reason": "not opted in"}
+    # Clear the delivered stamp so a manual send is never silently a no-op.
+    with db.tx() as c:
+        c.execute("UPDATE recommendations SET delivered_at = NULL "
+                  "WHERE user_id = ? AND is_current = 1", (user["id"],))
+    return {"sent": notify.deliver_digest(user["id"])}

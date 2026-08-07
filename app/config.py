@@ -30,6 +30,23 @@ REASONING_EFFORT = _s("REASONING_EFFORT", "low")
 # model. grade/critic/reflect stay on the cheap one -- nobody reads their output.
 GENERATE_MODEL = _s("GENERATE_MODEL", "openai/gpt-5-mini")
 
+# --- email digest (bonus: scheduled proactive delivery) --------------------
+# Plain SMTP so the provider is a config change, not a code change. Brevo has
+# the most generous permanent free tier (300/day); Resend, Mailjet, SES and
+# Gmail all work here too. Unset SMTP_HOST disables delivery entirely.
+SMTP_HOST = _s("SMTP_HOST")
+SMTP_PORT = int(_s("SMTP_PORT", "587"))
+SMTP_USER = _s("SMTP_USER")
+SMTP_PASSWORD = _s("SMTP_PASSWORD")
+SMTP_FROM = _s("SMTP_FROM")
+PUBLIC_BASE_URL = _s("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
+
+# Scheduler. Hour is local server time.
+DIGEST_HOUR = int(_s("DIGEST_HOUR", "16"))
+DIGEST_MINUTE = int(_s("DIGEST_MINUTE", "0"))
+SWEEP_MINUTES = int(_s("SWEEP_MINUTES", "15"))
+ENABLE_SCHEDULER = _s("ENABLE_SCHEDULER", "1") not in ("0", "false", "no")
+
 LANGSMITH_API_KEY = _s("LANGSMITH_API_KEY")
 LANGSMITH_PROJECT = _s("LANGSMITH_PROJECT", "reckon")
 

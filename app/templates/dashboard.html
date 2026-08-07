@@ -52,6 +52,16 @@
          run, which is what this page is. #}
       <button class="btn ghost small" id="open-agent-cam" type="button">Show me why</button>
     </div>
+
+    {# Opt-in, default off. We never verified this address at signup, so the
+       scheduler must not mail anyone who did not ask. #}
+    <label class="digest-opt">
+      <input type="checkbox" id="digest-opt-in" {% if user.digest_opt_in %}checked{% endif %}>
+      <span>Email me a daily digest
+        <span class="hint">Once a day to {{ user.email }}, only when something changed.</span>
+      </span>
+    </label>
+    <p class="ver" id="digest-status" hidden></p>
   </aside>
 </div>
 
