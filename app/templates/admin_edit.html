@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if p else 'Add' }} a course — Reckon{% endblock %}
+{% block content %}
+
+<div style="max-width:680px;margin:3rem auto">
+  <p class="eyebrow">{{ 'Editing' if p else 'New course' }}</p>
+  <h1 style="margin:.5rem 0 2rem">{{ p.title if p else 'Add a course' }}</h1>
+
+  <form method="post" action="/admin/save" style="display:grid;gap:1.15rem">
+    {% if p %}<input type="hidden" name="product_id" value="{{ p.id }}">{% endif %}
+
+    <label>Title<input type="text" name="title" required value="{{ p.title if p else '' }}"></label>
+
+    <label>Description
+      <textarea name="description" rows="7" required>{{ p.description if p else '' }}</textarea>
+      <span class="hint">This text is what gets embedded. Lead with the concrete
+        outcome — the first sentence carries the most retrieval weight.</span>
+    </label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.15rem">
+      <label>Category
+        <select name="category" required>
+          {% for c in categories %}
+          <option value="{{ c }}" {% if p and p.category == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Level
+        <select name="level">
+          <option value="">Not set</option>
+          {% for l in ['Beginner', 'Intermediate', 'Advanced'] %}
+          <option value="{{ l }}" {% if p and p.level == l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Price (₹)<input type="number" name="price" min="0" step="1"
+             value="{{ '%.0f'|format(p.price) if p else '0' }}"></label>
+      <label>Rating<input type="number" name="rating" min="0" max="5" step="0.1"
+             value="{{ p.rating if p and p.rating else '' }}"></label>
+    </div>
+
+    <label>Provider<input type="text" name="provider" value="{{ p.provider if p and p.provider else '' }}"></label>
+    <label>Skills<input type="text" name="skills" value="{{ p.skills if p and p.skills else '' }}"
+           placeholder="comma, separated, skills"></label>
+
+    <label class="inline">
+      <input type="checkbox" name="is_active" value="1"
+             {% if not p or p.is_active %}checked{% endif %}>
+      Live in the catalog
+      <span class="hint">Unpublishing removes it from search immediately; the record is kept.</span>
+    </label>
+
+    <div style="display:flex;gap:.75rem;margin-top:.5rem">
+      <button class="btn" type="submit">{{ 'Save changes' if p else 'Add course' }}</button>
+      <a class="btn ghost" href="/admin">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

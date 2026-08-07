@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="margin:3rem 0 1rem">
+  {% set total = counts.values()|sum %}
+  <p class="eyebrow">{{ total }} course{{ '' if total == 1 else 's' }}</p>
+  <h1 style="max-width:16ch">Find the next thing worth your time.</h1>
+</div>
+
+<form method="get" action="/" style="display:flex;gap:.6rem;max-width:520px;margin:1.5rem 0">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search courses, skills, tools"
+         aria-label="Search courses" id="search-input" autocomplete="off">
+  <button class="btn" type="submit">Search</button>
+</form>
+
+<div class="filters">
+  <a class="chip {% if not category %}on{% endif %}" href="/{% if q %}?q={{ q }}{% endif %}">All</a>
+  {% for c in categories %}
+    <a class="chip {% if category == c %}on{% endif %}"
+       href="/?category={{ c|urlencode }}{% if q %}&q={{ q }}{% endif %}">{{ c }} <span class="dim">{{ counts[c] }}</span></a>
+  {% endfor %}
+</div>
+
+{% if not products %}
+  <p class="dim" style="margin:4rem 0">Nothing matches that yet. Try a broader search.</p>
+{% endif %}
+
+<div class="grid" id="grid">
+  {% for p in products %}
+  <a class="card" href="/p/{{ p.id }}" data-product="{{ p.id }}">
+    <p class="eyebrow">{{ p.category }}</p>
+    <h3>{{ p.title }}</h3>
+    <p class="blurb">{{ p.description }}</p>
+    <div class="meta">
+      <span class="price">{% if p.price %}₹{{ '{:,.0f}'.format(p.price) }}{% else %}Free{% endif %}</span>
+      {% if p.level %}<span>{{ p.level }}</span>{% endif %}
+      {% if p.rating %}<span>★ {{ '%.1f'|format(p.rating) }}</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% endblock %}

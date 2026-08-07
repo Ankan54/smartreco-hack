@@ -1,0 +1,303 @@
+/* Reckon — light mode only, one committed look.
+   Palette "Admiralty", taken from nautical charts rather than a mood board:
+   white chart paper, navy linework, pale water tints for surfaces, buff for
+   the land/structural marks, and MAGENTA — which on a real chart is the
+   navigational overprint, the ink reserved for anything that affects your
+   course. Here it marks exactly that: the agent changing direction.
+
+   Every value below is contrast-checked against its own background. The
+   previous palette's brass eyebrow failed AA at 3.84:1, which is why it's gone.
+
+   Three type registers, because the product has three: interface (grotesque),
+   the agent's own voice (reading serif), and instrumentation (mono). */
+
+:root {
+  --paper:  #FFFFFF;   /* chart paper                                        */
+  --tint:   #F1F6FA;   /* pale water — page ground and card fills            */
+  --shoal:  #DEEAF2;   /* deeper water — hover, active fills                 */
+  --rule:   #C2D4E0;   /* chart hairline                                     */
+  --ink:    #0E2436;   /* linework navy — body text        15.9:1 on paper   */
+  --slate:  #4C6274;   /* secondary text                    6.4:1 on paper   */
+  --depth:  #0F5C77;   /* interactive: links, active        7.5:1 on paper   */
+  --buff:   #7D5A2A;   /* land tint: eyebrows, ticks        6.2:1 on paper   */
+  --signal: #C4005A;   /* NAVIGATIONAL OVERPRINT            6.0:1 on paper   */
+
+  --ui:   'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --read: 'Newsreader', Georgia, serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  --gap: 1.5rem;
+  --radius: 3px;
+  --maxw: 1180px;
+}
+
+* { box-sizing: border-box; }
+
+/* Water below, chart panels above. The old build had white cards on a white
+   ground, which is exactly why every page read as flat.
+
+   The graticule is the defining mark of a chart, and it is what stops this
+   from being a generic pale-blue SaaS ground. Two gradients, no image. */
+body {
+  margin: 0;
+  background-color: var(--tint);
+  background-image:
+    linear-gradient(to right,  rgba(15,92,119,.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,92,119,.055) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+  color: var(--ink);
+  font: 400 16px/1.6 var(--ui);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+main.wrap { flex: 1; width: 100%; }
+
+a { color: var(--depth); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+h1, h2, h3 { font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); }
+h2 { font-size: 1.3rem; }
+
+:focus-visible { outline: 2px solid var(--depth); outline-offset: 2px; border-radius: 2px; }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gap); }
+
+/* ---- eyebrow: the structural label. Used only where it encodes something. -- */
+.eyebrow {
+  font: 500 0.68rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--buff);
+}
+
+/* ---- header --------------------------------------------------------------- */
+header.top {
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  position: sticky; top: 0; z-index: 40;
+}
+.top .wrap { display: flex; align-items: center; gap: var(--gap); height: 62px; }
+.brand {
+  font: 500 1.15rem/1 var(--ui);
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  text-decoration: none;
+  display: flex; align-items: baseline; gap: .45rem;
+}
+.brand::before {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid var(--buff); display: inline-block;
+}
+.top nav { margin-left: auto; display: flex; align-items: center; gap: 1.25rem; }
+.top nav a { color: var(--slate); text-decoration: none; font-size: .92rem; }
+.top nav a:hover, .top nav a[aria-current] { color: var(--ink); }
+
+/* ---- THE HORIZON ----------------------------------------------------------
+   Signature element. A hairline that tilts as the user's interests move, and
+   flushes signal-magenta when the agent wakes. No number, no label — it explains
+   itself by responding to you. Angle is driven by the real drift value.       */
+.horizon {
+  height: 3px;
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+}
+.horizon i {
+  position: absolute;
+  left: -10%; right: -10%; top: 1px;
+  height: 1px;
+  display: block;
+  background: var(--rule);
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: center;
+  transition: transform 1.4s cubic-bezier(.22,.61,.36,1), background-color .5s, height .3s;
+}
+.horizon[data-state="drifting"] i { background: var(--buff); }
+.horizon[data-state="crossed"] i {
+  background: var(--signal);
+  height: 2px;
+  transform: rotate(0deg);
+}
+.horizon button {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border: 0; background: none; padding: 0;
+  cursor: pointer;
+}
+
+/* ---- catalog grid --------------------------------------------------------- */
+.filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.25rem 0 2rem; }
+.chip {
+  font: 400 .85rem/1 var(--ui);
+  padding: .5rem .85rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--slate);
+  cursor: pointer;
+  text-decoration: none;
+}
+.chip:hover { border-color: var(--depth); color: var(--ink); }
+/* Magenta is the navigational overprint: it marks anything that changes your
+   course. A selected filter changes what you're looking at, so it earns it. */
+.chip.on {
+  background: var(--signal); border-color: var(--signal); color: #fff;
+}
+.chip.on .dim { color: rgba(255,255,255,.72); }
+
+/* Hairline rules between cards without a gap-background trick -- that trick
+   leaks the line colour across the empty half of a partial row. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+}
+.card {
+  background: var(--paper);
+  padding: 1.35rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  display: flex; flex-direction: column; gap: .6rem;
+  text-decoration: none; color: inherit;
+  transition: background .15s, opacity .2s;
+}
+.card:hover { background: var(--tint); }
+.card h3 { font-size: 1.02rem; font-weight: 500; }
+.card .meta {
+  font: 400 .72rem/1.4 var(--mono);
+  color: var(--slate);
+  display: flex; gap: .6rem; flex-wrap: wrap;
+  margin-top: auto;
+}
+.card .blurb {
+  font-size: .88rem; color: var(--slate);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.price { color: var(--ink); font-weight: 500; }
+.dim { color: var(--slate); }
+
+/* Hovering a dossier claim dims what it didn't influence. */
+.grid.focusing .card:not(.lit) { opacity: .28; }
+
+/* ---- forms ---------------------------------------------------------------- */
+input[type=text], input[type=email], input[type=password], input[type=number], textarea, select {
+  font: 400 .95rem var(--ui);
+  padding: .62rem .75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--depth); }
+.btn {
+  font: 500 .92rem var(--ui);
+  padding: .65rem 1.15rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--ink); color: var(--paper);
+  cursor: pointer; text-decoration: none; display: inline-block;
+}
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { background: var(--depth); border-color: var(--depth); color: #fff; }
+
+.narrow { max-width: 420px; margin: 4rem auto; }
+.error {
+  font-size: .88rem; color: #8A2B14;
+  border-left: 2px solid #8A2B14; padding-left: .7rem; margin: 1rem 0;
+}
+
+/* ---- product page --------------------------------------------------------- */
+.detail { display: grid; grid-template-columns: 1fr 300px; gap: 3rem; margin: 2.5rem 0; }
+.detail .body { font-family: var(--read); font-size: 1.06rem; line-height: 1.75; }
+.aside {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  align-self: start;
+}
+.aside dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .45rem 1rem; }
+.aside dt { font: 400 .7rem var(--mono); color: var(--slate); text-transform: uppercase; letter-spacing: .08em; }
+.aside dd { margin: 0; font-size: .92rem; }
+
+.ladder { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
+.ladder a { font-size: .9rem; padding-left: 1rem; border-left: 2px solid var(--buff); text-decoration: none; }
+
+footer.foot {
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+  margin-top: 5rem; padding: 2rem 0;
+  flex-shrink: 0;
+  font-size: .8rem; color: var(--slate);
+}
+
+@media (max-width: 780px) {
+  .detail { grid-template-columns: 1fr; }
+  .aside { margin-top: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* ---- admin ---------------------------------------------------------------- */
+/* The sync badge. Three numbers that must always agree; if they don't, that's
+   a dual-write bug and the page should say so loudly. */
+.sync {
+  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--depth);
+  border-radius: var(--radius);
+  padding: .85rem 1.15rem;
+  font: 400 .85rem var(--mono);
+  color: var(--slate);
+}
+.sync b { color: var(--ink); font-weight: 500; }
+.sync .verdict { margin-left: auto; color: var(--depth); }
+.sync.bad { border-left-color: var(--signal); }
+.sync.bad .verdict { color: var(--signal); font-weight: 500; }
+
+.note {
+  font: 400 .85rem var(--mono); color: var(--depth);
+  border-left: 2px solid var(--depth); padding-left: .7rem; margin: 1.25rem 0;
+}
+
+.admin-table {
+  width: 100%; border-collapse: collapse; margin-top: 1rem;
+  background: var(--paper); border: 1px solid var(--rule);
+}
+.admin-table th {
+  text-align: left; font: 500 .68rem var(--mono);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--buff);
+  padding: .8rem 1rem; border-bottom: 1px solid var(--rule);
+}
+.admin-table td { padding: .8rem 1rem; border-bottom: 1px solid var(--rule); font-size: .9rem; }
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table tr:hover td { background: var(--tint); }
+.admin-table .num { font-family: var(--mono); font-size: .82rem; }
+.row-actions { display: flex; gap: .9rem; align-items: center; justify-content: flex-end; }
+.row-actions form { display: inline; }
+.linkish {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--signal); font: inherit; font-size: .9rem; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tag {
+  font: 500 .62rem var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--buff); border: 1px solid var(--rule); border-radius: 2px;
+  padding: .1rem .35rem; margin-left: .4rem;
+}
+.tag.off { color: var(--signal); border-color: var(--signal); }
+
+label { display: block; font-size: .9rem; }
+label .hint { display: block; font-size: .78rem; color: var(--slate); margin-top: .3rem; }
+label.inline { display: flex; align-items: flex-start; gap: .5rem; flex-wrap: wrap; }
+label.inline input { width: auto; margin-top: .25rem; }
+label.inline .hint { flex-basis: 100%; margin-left: 1.4rem; }
+textarea { font-family: var(--ui); line-height: 1.6; resize: vertical; }

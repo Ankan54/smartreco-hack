@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Catalog — Reckon{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:flex-end;gap:1.5rem;margin:3rem 0 1.5rem;flex-wrap:wrap">
+  <div>
+    <p class="eyebrow">Catalog</p>
+    <h1 style="margin:.5rem 0 0">{{ total }} courses</h1>
+  </div>
+  <a class="btn" href="/admin/new" style="margin-left:auto">Add a course</a>
+</div>
+
+{# The sync badge. Chroma holds exactly the active products, so these three
+   numbers must always match -- a mismatch is a real bug, not expected drift. #}
+<div class="sync {% if sync.in_sync %}ok{% else %}bad{% endif %}">
+  <span class="eyebrow">Stores</span>
+  <span><b>{{ sync.sql }}</b> database</span>
+  <span><b>{{ sync.vector }}</b> vector</span>
+  <span><b>{{ sync.fts }}</b> full-text</span>
+  <span class="verdict">{% if sync.in_sync %}in sync{% else %}out of sync — run scripts/reindex.py{% endif %}</span>
+</div>
+
+{% if saved %}<p class="note">{{ saved }}</p>{% endif %}
+
+<form method="get" action="/admin" style="display:flex;gap:.6rem;max-width:420px;margin:1.5rem 0">
+  <input type="text" name="q" value="{{ q }}" placeholder="Filter by title or skill" aria-label="Filter courses">
+  <button class="btn ghost" type="submit">Filter</button>
+</form>
+
+<table class="admin-table">
+  <thead>
+    <tr><th>Title</th><th>Category</th><th>Level</th><th>Price</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for p in products %}
+    <tr>
+      <td><a href="/p/{{ p.id }}">{{ p.title }}</a>
+          {% if p.provider == 'Reckon Originals' %}<span class="tag">original</span>{% endif %}</td>
+      <td class="dim">{{ p.category }}</td>
+      <td class="dim">{{ p.level or '—' }}</td>
+      <td class="num">{% if p.price %}₹{{ '{:,.0f}'.format(p.price) }}{% else %}Free{% endif %}</td>
+      <td>{% if p.is_active %}<span class="dim">live</span>{% else %}<span class="tag off">unpublished</span>{% endif %}</td>
+      <td class="row-actions">
+        <a href="/admin/{{ p.id }}/edit">Edit</a>
+        <form method="post" action="/admin/{{ p.id }}/delete"
+              onsubmit='return confirm("Delete this course from the database, the vector index and the text index?")'>
+          <button type="submit" class="linkish">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

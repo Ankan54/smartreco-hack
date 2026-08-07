@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Reckon{% endblock %}
+{% block content %}
+
+<div class="narrow">
+  {% if mode == 'signup' %}
+    <p class="eyebrow">New here</p>
+    <h1 style="margin:.5rem 0 2rem">Make an account.</h1>
+    <form method="post" action="/signup" style="display:grid;gap:1rem">
+      <label>Email<input type="email" name="email" required autocomplete="email"></label>
+      <label>Password<input type="password" name="password" required minlength="8"
+             autocomplete="new-password"></label>
+      <p class="dim" style="font-size:.82rem;margin:0">Eight characters or more.</p>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <button class="btn" type="submit">Create account</button>
+    </form>
+    <p style="margin-top:1.5rem;font-size:.9rem"><a href="/login">Already have one? Sign in</a></p>
+  {% else %}
+    <p class="eyebrow">Welcome back</p>
+    <h1 style="margin:.5rem 0 2rem">Sign in.</h1>
+    <form method="post" action="/login" style="display:grid;gap:1rem">
+      <label>Email<input type="email" name="email" required autocomplete="email"></label>
+      <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <button class="btn" type="submit">Sign in</button>
+    </form>
+    <p style="margin-top:1.5rem;font-size:.9rem"><a href="/login?mode=signup">Need an account?</a></p>
+  {% endif %}
+</div>
+
+{% endblock %}

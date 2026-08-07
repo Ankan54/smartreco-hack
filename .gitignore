@@ -1,0 +1,50 @@
+# --- secrets: the one line that must never break ---------------------------
+.env
+.env.*
+!.env.example
+
+# --- python / uv -----------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- generated state: rebuilt by scripts/seed_db.py ------------------------
+# data/catalog.json is COMMITTED on purpose -- it lets a grader seed the app
+# with only a Mesh key, no HuggingFace download and no enrichment pass.
+data/app.db
+data/app.db-wal
+data/app.db-shm
+data/chroma/
+data/catalog_raw.json
+
+# --- tooling ---------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- local dev artefacts, not part of the app ------------------------------
+.claude/
+.playwright-mcp/
+*.png
+*.jpg
+*.webp
+
+# --- working docs: useful locally, not needed to run the app ---------------
+PLAN.md
+AGENTS.md
+smartreco_hackathon_details.md
+# The CI workflow that counts lives at .github/workflows/; this root copy is
+# just the original download.
+/smartreco-build-challenge-2026-checks.yml
+
+# --- editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Reckon{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='none' stroke='%239A7B3F' stroke-width='2'/></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">Reckon</a>
+    <nav>
+      <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Browse</a>
+      {% if user %}
+        <a href="/me" {% if request.url.path == '/me' %}aria-current="page"{% endif %}>For you</a>
+        {% if user.role == 'admin' %}<a href="/admin">Catalog</a>{% endif %}
+        <a href="/logout">Sign out</a>
+      {% else %}
+        <a class="btn ghost" href="/login">Sign in</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+{#  The Horizon. Level until interests move. Tilts as drift accumulates, flushes
+    sodium when the agent wakes. Driven by the real drift value, never faked. #}
+<div class="horizon" id="horizon" data-state="level" aria-hidden="true">
+  <i></i>
+  {% if user %}<button type="button" id="horizon-open" tabindex="-1"></button>{% endif %}
+</div>
+
+<main class="wrap">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    Reckon — dead reckoning for what to learn next.
+  </div>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
