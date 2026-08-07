@@ -77,8 +77,20 @@ def chat(messages: list[dict], schema: dict | None = None, model: str | None = N
 
 # --- embeddings ------------------------------------------------------------
 
-def _hash(text: str) -> str:
+def cache_key(text: str) -> str:
+    """embed_cache key. Model-scoped on purpose: the same text under a different
+    embedding model is a different vector, so switching models must miss the
+    cache rather than silently return stale vectors from the old space.
+
+    NOTE this is deliberately NOT the same as vectors.content_hash(), which
+    hashes only the text and answers a different question ("has this product's
+    text changed?"). Conflating the two is what made product_vector() always
+    return None the first time round.
+    """
     return hashlib.sha256(f"{config.EMBED_MODEL}\x00{text}".encode()).hexdigest()
+
+
+_hash = cache_key   # backwards-compatible alias
 
 
 def embed(texts: list[str]) -> list[np.ndarray]:

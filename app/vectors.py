@@ -15,6 +15,7 @@ in the index at all.
 import hashlib
 import json
 import logging
+from functools import lru_cache
 
 import chromadb
 import numpy as np
@@ -111,6 +112,7 @@ def upsert_product(p: dict, *, skip_unchanged: bool = True) -> bool:
     if unchanged and skip_unchanged:
         return False
 
+    _cached_product_vector.cache_clear()
     vec = mesh.embed_one(embed_text(p))
     collection().upsert(
         ids=[str(p["id"])],
@@ -166,25 +168,48 @@ def upsert_many(products: list[dict], *, skip_unchanged: bool = True) -> int:
             documents=[p["title"] for p in chunk],
         )
         log.info("indexed %d/%d", min(i + len(chunk), len(pending)), len(pending))
+    _cached_product_vector.cache_clear()
     return len(pending)
 
 
 def delete_product(product_id: int) -> None:
+    _cached_product_vector.cache_clear()
     with db.tx() as c:
         c.execute("DELETE FROM products WHERE id = ?", (product_id,))
         c.execute("DELETE FROM products_fts WHERE rowid = ?", (product_id,))
     collection().delete(ids=[str(product_id)])
 
 
-def product_vector(product_id: int) -> np.ndarray | None:
-    """One local SQLite read. NEVER a Chroma fetch -- Chroma omits embeddings
-    from get() by default, and this sits in the hot path of every event batch."""
+@lru_cache(maxsize=4096)
+def _cached_product_vector(product_id: int, stamp: str) -> bytes | None:
+    """`stamp` is the product's content_hash: it is only in the signature so
+    that editing a product busts this cache automatically."""
     row = db.q1(
-        "SELECT c.vec FROM products p JOIN embed_cache c ON c.text_hash = p.content_hash "
-        "WHERE p.id = ?",
+        "SELECT title, description, category, level, skills FROM products WHERE id = ?",
         (product_id,),
     )
-    return db.from_blob(row["vec"]) if row else None
+    if not row:
+        return None
+    hit = db.q1("SELECT vec FROM embed_cache WHERE text_hash = ?",
+                (mesh.cache_key(embed_text(dict(row))),))
+    return hit["vec"] if hit else None
+
+
+def product_vector(product_id: int) -> np.ndarray | None:
+    """The catalog embedding for a product, read locally.
+
+    NEVER a Chroma fetch: Chroma omits embeddings from get() by default, and
+    this sits in the hot path of every single tracked event.
+
+    Looks up embed_cache by the MODEL-SCOPED key (mesh.cache_key), not by
+    products.content_hash -- those are different hashes answering different
+    questions, and joining on the wrong one silently returns None for every
+    product, which quietly kills the whole intent engine.
+    """
+    row = db.q1("SELECT content_hash FROM products WHERE id = ?", (product_id,))
+    if not row:
+        return None
+    return db.from_blob(_cached_product_vector(product_id, row["content_hash"]))
 
 
 def sync_status() -> dict:

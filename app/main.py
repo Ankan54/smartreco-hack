@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import config, db
-from app.routes import admin, pages
+from app.routes import admin, api, pages
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -22,6 +22,7 @@ app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, max_age=60 *
 app.mount("/static", StaticFiles(directory=config.ROOT / "app" / "static"), name="static")
 app.include_router(pages.router)
 app.include_router(admin.router)
+app.include_router(api.router)
 
 
 @app.get("/healthz")
