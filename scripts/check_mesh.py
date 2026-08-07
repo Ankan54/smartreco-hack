@@ -27,7 +27,7 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from app import config, mesh, schemas  # noqa: E402
+from app import config, db, mesh, schemas  # noqa: E402
 
 OK, BAD = "  [PASS]", "  [FAIL]"
 
@@ -38,6 +38,11 @@ def main() -> int:
                     help="fail unless the base URL is Mesh (use in CI before pushing)")
     args = ap.parse_args()
     failures = 0
+
+    # The embed cache lives in SQLite, and on a fresh clone there is no database
+    # yet. Without this the script dies on "no such table: embed_cache" -- and
+    # the README tells people to run it before anything else.
+    db.init()
 
     print(f"base_url : {config.MESH_BASE_URL}")
     print(f"chat     : {config.CHAT_MODEL}")
